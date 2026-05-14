@@ -41,42 +41,48 @@ void Menu::Print() const {
 }
 
 void Menu::Run(std::atomic<bool>& running) {
-    // Allocate a console for the menu
-    AllocConsole();
-    FILE* dummy;
-    freopen_s(&dummy, "CONOUT$", "w", stdout);
     SetConsoleTitleA("EDUCheats");
-
-    HANDLE hCon = GetStdHandle(STD_INPUT_HANDLE);
+    // Bring console to front so it's not buried under the game window
+    SetForegroundWindow(GetConsoleWindow());
 
     Print();
 
+    // Track previous key states for edge detection
+    bool prevInsert = false, prevF1 = false, prevF2 = false,
+         prevF3    = false, prevF4 = false, prevEnd = false;
+
+    auto pressed = [](int vk, bool& prev) -> bool {
+        bool cur = (GetAsyncKeyState(vk) & 0x8000) != 0;
+        bool edge = cur && !prev;
+        prev = cur;
+        return edge;
+    };
+
     while (running) {
-        // Non-blocking key poll at ~20Hz
-        if (GetAsyncKeyState(VK_END) & 0x8000) {
+        if (pressed(VK_END, prevEnd)) {
             running = false;
             break;
         }
 
-        if (GetAsyncKeyState(VK_INSERT) & 1) {
+        if (pressed(VK_INSERT, prevInsert)) {
             m_visible = !m_visible;
             Print();
         }
 
         if (m_visible) {
-            if (GetAsyncKeyState(VK_F1) & 1) {
+            if (pressed(VK_F1, prevF1)) {
                 m_cfg.enabled = !m_cfg.enabled.load();
                 Print();
             }
-            if (GetAsyncKeyState(VK_F2) & 1) {
+            if (pressed(VK_F2, prevF2)) {
                 m_cfg.nameESP = !m_cfg.nameESP.load();
                 Print();
             }
-            if (GetAsyncKeyState(VK_F3) & 1) {
+            if (pressed(VK_F3, prevF3)) {
                 m_cfg.healthBar = !m_cfg.healthBar.load();
                 Print();
             }
-            if (GetAsyncKeyState(VK_F4) & 1) {
+            if (pressed(VK_F4, prevF4)) {
                 m_cfg.colorMode = (m_cfg.colorMode == 0) ? 1 : 0;
                 Print();
             }
