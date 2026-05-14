@@ -1,5 +1,6 @@
 #include "esp.hpp"
 #include "../offsets.hpp"
+#include <objbase.h>    // IUnknown — must precede gdiplus when WIN32_LEAN_AND_MEAN is set
 #include <dwmapi.h>
 #include <gdiplus.h>
 #include <algorithm>
@@ -17,9 +18,7 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
         if (g_overlay) {
-            RECT rc;
-            GetClientRect(hwnd, &rc);
-            g_overlay->RenderFrame(hdc, g_overlay->m_localTeam);
+            g_overlay->Paint(hdc);
         }
         EndPaint(hwnd, &ps);
         return 0;
@@ -187,6 +186,14 @@ void ESPOverlay::RenderFrame(HDC hdc, int localTeam) {
         DrawBoxESP(hdc, p, m_winW, m_winH);
     }
     LeaveCriticalSection(&m_dataLock);
+}
+
+void ESPOverlay::Paint(HDC hdc) {
+    RenderFrame(hdc, m_localTeam);
+}
+
+void ESPOverlay::Stop() {
+    if (m_hwnd) PostMessageW(m_hwnd, WM_DESTROY, 0, 0);
 }
 
 void ESPOverlay::Run(int localTeam) {

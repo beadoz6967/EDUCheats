@@ -2,6 +2,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 #include <cstdio>
 
 #include "memory.hpp"
@@ -87,9 +88,7 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
-    // Signal overlay to close
-    if (overlay.m_hwnd)
-        PostMessageW(overlay.m_hwnd, WM_DESTROY, 0, 0);
+    overlay.Stop();
 
     overlayThread.join();
     menuThread.join();

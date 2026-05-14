@@ -32,6 +32,12 @@ public:
     // Called from the main loop to push fresh entity data.
     void UpdatePlayers(const PlayerESPData players[64], int count, int localTeam);
 
+    // Called by WndProc (free function in same TU needs public access)
+    void Paint(HDC hdc);
+
+    // Post WM_DESTROY to cleanly exit the message loop
+    void Stop();
+
 private:
     void CreateOverlayWindow();
     void RenderFrame(HDC hdc, int localTeam);
