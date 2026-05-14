@@ -21,6 +21,18 @@ static void ClearConsole() {
 
 static const char* BoolStr(bool v) { return v ? "ON " : "OFF"; }
 
+static bool EnsureConsole() {
+    if (GetConsoleWindow()) return true;
+
+    if (!AllocConsole()) return false;
+
+    FILE* dummy = nullptr;
+    freopen_s(&dummy, "CONOUT$", "w", stdout);
+    freopen_s(&dummy, "CONOUT$", "w", stderr);
+    freopen_s(&dummy, "CONIN$", "r", stdin);
+    return true;
+}
+
 void Menu::Print() const {
     ClearConsole();
     puts("  ___  ___  _   _  ___  _                _        ");
@@ -44,6 +56,8 @@ void Menu::Print() const {
 }
 
 void Menu::Run(std::atomic<bool>& running) {
+    EnsureConsole();
+
     SetConsoleTitleA("EDUCheats");
     // Bring console to front so it's not buried under the game window
     HWND consoleWnd = GetConsoleWindow();
