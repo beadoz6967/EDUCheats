@@ -15,17 +15,30 @@ static std::atomic<bool> g_running{ true };
 
 int main() {
     Memory mem;
+    uintptr_t clientBase = 0;
 
-    // Wait for CS2
-    while (!mem.Attach("cs2.exe")) {
+    printf("[EDUCheats] Waiting for cs2.exe...\n");
+
+    // Wait for CS2 process AND client.dll — client.dll loads a few seconds after the process appears
+    while (true) {
         if (GetAsyncKeyState(VK_END) & 0x8000) return 0;
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+
+        if (!mem.IsAttached()) {
+            if (!mem.Attach("cs2.exe")) {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                continue;
+            }
+            printf("[EDUCheats] cs2.exe found. Waiting for client.dll...\n");
+        }
+
+        clientBase = mem.GetModuleBase("client.dll");
+        if (clientBase) break;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    uintptr_t clientBase = mem.GetModuleBase("client.dll");
-    if (!clientBase) {
-        return 1;
-    }
+    printf("[EDUCheats] Attached. client.dll base: 0x%llX\n",
+           static_cast<unsigned long long>(clientBase));
 
     ESPConfig espCfg;
     ESPOverlay overlay(mem, clientBase, espCfg);
@@ -41,13 +54,12 @@ int main() {
         menu.Run(g_running);
     });
 
-    // Resolve entity list base once
-    uintptr_t entityListBase = mem.Read<uintptr_t>(clientBase + offsets::dwEntityList);
-
-    CEntityList entityList(entityListBase, mem);
-
     // Main entity read loop — ~60 Hz
     while (g_running) {
+        // Re-resolve entity list each tick in case it shifted during loading
+        uintptr_t entityListBase = mem.Read<uintptr_t>(clientBase + offsets::dwEntityList);
+        CEntityList entityList(entityListBase, mem);
+
         uintptr_t localControllerPtr = mem.Read<uintptr_t>(clientBase + offsets::dwLocalPlayerController);
         int localTeam = 0;
         if (localControllerPtr) {
