@@ -6,9 +6,12 @@
 
 static void ClearConsole() {
     HANDLE hCon = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hCon == nullptr || hCon == INVALID_HANDLE_VALUE) return;
+
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     DWORD count, written;
-    GetConsoleScreenBufferInfo(hCon, &csbi);
+    if (!GetConsoleScreenBufferInfo(hCon, &csbi)) return;
+
     count = csbi.dwSize.X * csbi.dwSize.Y;
     COORD origin{ 0, 0 };
     FillConsoleOutputCharacterA(hCon, ' ', count, origin, &written);
@@ -43,7 +46,10 @@ void Menu::Print() const {
 void Menu::Run(std::atomic<bool>& running) {
     SetConsoleTitleA("EDUCheats");
     // Bring console to front so it's not buried under the game window
-    SetForegroundWindow(GetConsoleWindow());
+    HWND consoleWnd = GetConsoleWindow();
+    if (consoleWnd) {
+        SetForegroundWindow(consoleWnd);
+    }
 
     Print();
 

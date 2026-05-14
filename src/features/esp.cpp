@@ -50,7 +50,9 @@ void ESPOverlay::CreateOverlayWindow() {
     wc.hInstance     = GetModuleHandleW(nullptr);
     wc.lpszClassName = kOverlayClass;
     wc.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
-    RegisterClassExW(&wc);
+    if (!RegisterClassExW(&wc)) {
+        return;
+    }
 
     m_hwnd = CreateWindowExW(
         WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
@@ -58,6 +60,10 @@ void ESPOverlay::CreateOverlayWindow() {
         WS_POPUP,
         gameRect.left, gameRect.top, m_winW, m_winH,
         nullptr, nullptr, wc.hInstance, nullptr);
+
+    if (!m_hwnd) {
+        return;
+    }
 
     // Black = transparent color key
     SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
@@ -206,6 +212,13 @@ void ESPOverlay::Run(int localTeam) {
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusInput, nullptr);
 
     CreateOverlayWindow();
+
+    if (!m_hwnd) {
+        Gdiplus::GdiplusShutdown(gdiplusToken);
+        DeleteCriticalSection(&m_dataLock);
+        g_overlay = nullptr;
+        return;
+    }
 
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0)) {
