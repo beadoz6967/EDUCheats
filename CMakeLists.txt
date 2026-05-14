@@ -15,6 +15,7 @@ add_compile_definitions(
 set(SOURCES
     src/main.cpp
     src/memory.cpp
+    src/config.cpp
     src/features/esp.cpp
     src/menu/menu.cpp
 )

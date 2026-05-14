@@ -1,5 +1,6 @@
 #include "memory.hpp"
 #include <algorithm>
+#include <vector>
 
 DWORD Memory::FindPID(const std::string& processName) const {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -33,30 +34,33 @@ bool Memory::Attach(const std::string& processName) {
 uintptr_t Memory::GetModuleBase(const std::string& moduleName) const {
     if (!m_handle) return 0;
 
-    HMODULE modules[1024]{};
+    std::vector<HMODULE> modules(512);
     DWORD needed = 0;
 
-    if (!EnumProcessModules(m_handle, modules, sizeof(modules), &needed))
-        return 0;
+    // Retry with a larger buffer if the process has more modules than our initial estimate
+    for (;;) {
+        DWORD bufBytes = static_cast<DWORD>(modules.size() * sizeof(HMODULE));
+        if (!EnumProcessModules(m_handle, modules.data(), bufBytes, &needed))
+            return 0;
+        if (needed <= bufBytes) break;
+        modules.resize(needed / sizeof(HMODULE));
+    }
 
     const DWORD count = needed / sizeof(HMODULE);
     char name[MAX_PATH]{};
 
     for (DWORD i = 0; i < count; ++i) {
-        if (GetModuleFileNameExA(m_handle, modules[i], name, MAX_PATH)) {
-            // Compare just the filename portion
-            std::string fullPath(name);
-            auto slash = fullPath.find_last_of("\\/");
-            std::string filename = (slash != std::string::npos) ? fullPath.substr(slash + 1) : fullPath;
+        if (!GetModuleFileNameExA(m_handle, modules[i], name, MAX_PATH)) continue;
 
-            // Case-insensitive compare
-            std::string a = filename, b = moduleName;
-            std::transform(a.begin(), a.end(), a.begin(), ::tolower);
-            std::transform(b.begin(), b.end(), b.begin(), ::tolower);
+        std::string fullPath(name);
+        auto slash = fullPath.find_last_of("\\/");
+        std::string filename = (slash != std::string::npos) ? fullPath.substr(slash + 1) : fullPath;
 
-            if (a == b)
-                return reinterpret_cast<uintptr_t>(modules[i]);
-        }
+        std::string a = filename, b = moduleName;
+        std::transform(a.begin(), a.end(), a.begin(), ::tolower);
+        std::transform(b.begin(), b.end(), b.begin(), ::tolower);
+
+        if (a == b) return reinterpret_cast<uintptr_t>(modules[i]);
     }
 
     return 0;
