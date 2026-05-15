@@ -107,7 +107,8 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
         float boxW = boxH * 0.45f;
         float x    = feet.x - boxW * 0.5f;
         float y    = head.y;
-        ImU32 col  = (!p.isEnemy && teamColor) ? theme::kTeamBox : theme::kEnemyBox;
+        ImU32 defaultCol  = (!p.isEnemy && teamColor) ? theme::kTeamBox : theme::kEnemyBox;
+        ImU32 col = cfg.boxColor.load() != 0u ? static_cast<ImU32>(cfg.boxColor.load()) : defaultCol;
 
         // Corner box
         DrawCornerBox(dl, x, y, boxW, boxH, col);
@@ -164,8 +165,65 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
             DrawTextCentered(dl, { feet.x, y + boxH + 3.f }, DistanceColor(p.distance), buf);
         }
 
-        // Skeleton overlay — prefer resolved bone positions when available
+        // Always draw a dynamic fallback skeleton approximation so movement is
+        // visible even when attachment resolution fails or is stale.
         if (cfg.skeleton.load()) {
+            // Fallback approximation (thin, subtle) — always based on head and feet
+            auto drawApprox = [&]() {
+                auto lerp = [](const ImVec2& a, const ImVec2& b, float t) {
+                    return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+                };
+
+                ImVec2 headS = head;
+                ImVec2 feetS = feet;
+                ImVec2 neckS  = lerp(headS, feetS, 0.18f);
+                ImVec2 chestS = lerp(headS, feetS, 0.34f);
+                ImVec2 pelvisS = lerp(headS, feetS, 0.56f);
+
+                ImVec2 leftShoulder  = ImVec2(chestS.x - boxW * 0.55f, chestS.y);
+                ImVec2 rightShoulder = ImVec2(chestS.x + boxW * 0.55f, chestS.y);
+
+                ImVec2 leftHip  = ImVec2(pelvisS.x - boxW * 0.25f, pelvisS.y);
+                ImVec2 rightHip = ImVec2(pelvisS.x + boxW * 0.25f, pelvisS.y);
+
+                ImVec2 leftKnee  = lerp(leftHip, feetS, 0.55f);
+                ImVec2 rightKnee = lerp(rightHip, feetS, 0.55f);
+
+                ImVec2 leftFoot  = ImVec2(feetS.x - boxW * 0.20f, feetS.y);
+                ImVec2 rightFoot = ImVec2(feetS.x + boxW * 0.20f, feetS.y);
+
+                ImU32 apropCol = cfg.skeletonColor.load() != 0u ? static_cast<ImU32>(cfg.skeletonColor.load()) : col;
+                float apropTh = std::max(0.8f, cfg.skeletonThick.load() * 0.55f);
+
+                auto drawLine = [&](const ImVec2& a, const ImVec2& b) {
+                    if (a.x < 0 || b.x < 0) return;
+                    dl->AddLine(a, b, IM_COL32(0,0,0,140), apropTh + 0.9f);
+                    dl->AddLine(a, b, apropCol, apropTh);
+                };
+
+                drawLine(headS, neckS);
+                drawLine(neckS, chestS);
+                drawLine(chestS, pelvisS);
+                drawLine(chestS, leftShoulder);
+                drawLine(chestS, rightShoulder);
+                drawLine(chestS, leftHip);
+                drawLine(chestS, rightHip);
+                drawLine(leftHip, leftKnee);
+                drawLine(rightHip, rightKnee);
+                drawLine(leftKnee, leftFoot);
+                drawLine(rightKnee, rightFoot);
+            };
+            drawApprox();
+
+            // Prefer resolved bone positions when available. The scan loop
+            // typically fills attachments in this order: 0=head, 1=chest,
+            // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
+            // anatomical skeleton (spine, hips, legs) and render joints as
+            // filled circles for clarity similar to the reference overlay.
+            if (p.boneCount >= 2) {
+                // existing resolved bones drawing follows
+                
+                
             // Prefer attachment-resolved bones when available. The scan loop
             // typically fills attachments in this order: 0=head, 1=chest,
             // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
