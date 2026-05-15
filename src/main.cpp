@@ -196,6 +196,14 @@ int main() {
                 printf("[scan] players=%d matrixOk=%d nearest=%.1fm\n",
                        count, matrixOk ? 1 : 0,
                        nearestEnemyMeters < 0.f ? 0.f : nearestEnemyMeters);
+                if (count > 0) {
+                    PlayerESPData& pd = players[0];
+                    printf("[scan] first player boneCount=%d\n", pd.boneCount);
+                    if (pd.boneCount > 0) {
+                        Vector3 b0 = pd.bones[0];
+                        printf("[scan] first bone[0]=%.2f,%.2f,%.2f\n", b0.x, b0.y, b0.z);
+                    }
+                }
                 lastEntityLog = count;
             }
         }

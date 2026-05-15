@@ -202,8 +202,9 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
             }
         }
 
-        // If skeleton was disabled or not enough bones resolved, draw the original approximation
-        if (!cfg.skeleton.load() || p.boneCount < 2) {
+        // If skeleton is enabled but not enough bones were resolved, draw the original approximation
+        // When skeleton is disabled, do not draw any skeleton lines.
+        if (cfg.skeleton.load() && p.boneCount < 2) {
             auto lerp = [](const ImVec2& a, const ImVec2& b, float t) {
                 return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
             };
