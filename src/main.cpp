@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <string>
 
 #include "memory.hpp"
 #include "offsets.hpp"
@@ -16,6 +20,67 @@
 static std::atomic<bool> g_running{ true };
 
 static constexpr float kUnitsToMeters = 0.01905f;
+
+static std::string ResolveDebugPath() {
+    char buf[MAX_PATH]{};
+    DWORD len = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) return "bone_debug.txt";
+
+    std::string exe(buf, len);
+    const auto slash = exe.find_last_of("\\/");
+    if (slash == std::string::npos) return "bone_debug.txt";
+    return exe.substr(0, slash + 1) + "bone_debug.txt";
+}
+
+static void DeleteDebugFileIfPresent(const std::string& path) {
+    DeleteFileA(path.c_str());
+}
+
+static void WriteBoneDebugFile(const std::string& path,
+                               const PlayerESPData players[64],
+                               int count,
+                               int localTeam,
+                               bool matrixOk,
+                               float nearestEnemyMeters,
+                               const Vector3& localOrigin) {
+    if (count <= 0) {
+        DeleteDebugFileIfPresent(path);
+        return;
+    }
+
+    std::ofstream out(path, std::ios::trunc);
+    if (!out.is_open()) return;
+
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+
+    out << "EDUCheats bone debug\n";
+    out << "timestamp=" << std::setfill('0')
+        << std::setw(2) << st.wHour << ":"
+        << std::setw(2) << st.wMinute << ":"
+        << std::setw(2) << st.wSecond << "."
+        << std::setw(3) << st.wMilliseconds << "\n";
+    out << "players_visible=" << count << "\n";
+    out << "local_team=" << localTeam << "\n";
+    out << "matrix_ok=" << (matrixOk ? 1 : 0) << "\n";
+    out << "nearest_enemy_meters=" << (nearestEnemyMeters < 0.f ? 0.f : nearestEnemyMeters) << "\n";
+    out << std::fixed << std::setprecision(2);
+    out << "local_origin=" << localOrigin.x << "," << localOrigin.y << "," << localOrigin.z << "\n\n";
+
+    for (int i = 0; i < count; ++i) {
+        const PlayerESPData& p = players[i];
+        out << "[player " << i << "]\n";
+        out << "name=" << p.name << "\n";
+        out << "alive=" << (p.alive ? 1 : 0) << " enemy=" << (p.isEnemy ? 1 : 0) << " health=" << p.health << " distance_m=" << p.distance << "\n";
+        out << "origin=" << p.origin.x << "," << p.origin.y << "," << p.origin.z << "\n";
+        out << "head=" << p.headPos.x << "," << p.headPos.y << "," << p.headPos.z << "\n";
+        out << "boneCount=" << p.boneCount << "\n";
+        for (int b = 0; b < p.boneCount && b < 64; ++b) {
+            out << "bone[" << b << "]=" << p.bones[b].x << "," << p.bones[b].y << "," << p.bones[b].z << "\n";
+        }
+        out << "\n";
+    }
+}
 
 static float Distance3D(const Vector3& a, const Vector3& b) {
     float dx = a.x - b.x;
@@ -94,6 +159,7 @@ int main() {
 
     int lastEntityLog = -1;
     int loggedFrames  = 0;
+    const std::string boneDebugPath = ResolveDebugPath();
 
     while (g_running) {
         uintptr_t entityListBase = mem.Read<uintptr_t>(clientBase + offsets::dwEntityList);
@@ -187,6 +253,7 @@ int main() {
         gameState.nearestEnemyDist.store(nearestEnemyMeters);
         gameState.entityCount.store(count);
         overlay.PushPlayers(players, count, localTeam, view);
+        WriteBoneDebugFile(boneDebugPath, players, count, localTeam, matrixOk, nearestEnemyMeters, localOrigin);
 
         // Periodic status log every ~2 seconds when state changes meaningfully
         ++loggedFrames;
