@@ -2,6 +2,7 @@
 #include "memory.hpp"
 #include "offsets.hpp"
 #include <string>
+#include <sstream>
 
 struct Vector3 {
     float x = 0.f, y = 0.f, z = 0.f;
@@ -92,6 +93,60 @@ public:
             if (sib) { if (sp < 512) stack[sp++] = sib; }
             if (child) { if (sp < 512) stack[sp++] = child; }
         }
+        return false;
+    }
+
+    bool GetAttachmentWorldPosDebug(uint16_t attachmentHandle, Vector3& out, std::string& debugLog) const {
+        debugLog.clear();
+        if (attachmentHandle == 0) {
+            debugLog = "handle=0 -> skipped";
+            return false;
+        }
+
+        uintptr_t sceneNodePtr = m_mem.Read<uintptr_t>(m_base + client::C_CSPlayerPawn::m_pGameSceneNode);
+        if (!sceneNodePtr) {
+            debugLog = "sceneNode=0 -> missing";
+            return false;
+        }
+
+        std::ostringstream oss;
+        oss << "sceneNode=0x" << std::hex << sceneNodePtr << std::dec
+            << " handle=" << attachmentHandle << "\n";
+
+        uintptr_t stack[512];
+        int sp = 0;
+        stack[sp++] = sceneNodePtr;
+        int iter = 0;
+        int visited = 0;
+
+        while (sp > 0 && iter++ < 2000) {
+            uintptr_t nodePtr = stack[--sp];
+            if (!nodePtr) continue;
+
+            ++visited;
+            CGameSceneNode node(nodePtr, m_mem);
+            int16_t parentAttach = node.GetParentAttachmentOrBone();
+            Vector3 pos = node.GetAbsOrigin();
+
+            oss << "visit[" << visited << "] node=0x" << std::hex << nodePtr << std::dec
+                << " parentAttach=" << parentAttach
+                << " pos=" << std::fixed << pos.x << "," << pos.y << "," << pos.z << "\n";
+
+            if (parentAttach == static_cast<int16_t>(attachmentHandle)) {
+                out = pos;
+                debugLog = oss.str();
+                return true;
+            }
+
+            uintptr_t sib = node.GetNextSibling();
+            uintptr_t child = node.GetChild();
+            oss << "  next=0x" << std::hex << sib << " child=0x" << child << std::dec << "\n";
+            if (sib) { if (sp < 512) stack[sp++] = sib; }
+            if (child) { if (sp < 512) stack[sp++] = child; }
+        }
+
+        oss << "not found after visits=" << visited;
+        debugLog = oss.str();
         return false;
     }
 
