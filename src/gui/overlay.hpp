@@ -25,7 +25,7 @@ public:
 
     // Called from the entity-scan thread to publish a fresh snapshot.
     void PushPlayers(const PlayerESPData players[64], int count,
-                     int localTeam, ViewMatrix view);
+                     int localTeam, const ViewMatrix& view);
 
     // ImGui WndProc forwarder must see private state — friend.
     friend LRESULT CALLBACK OverlayWndProc(HWND, UINT, WPARAM, LPARAM);

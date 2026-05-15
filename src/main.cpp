@@ -24,6 +24,17 @@ static float Distance3D(const Vector3& a, const Vector3& b) {
     return std::sqrt(dx*dx + dy*dy + dz*dz);
 }
 
+static void EnableDpiAwareness() {
+    HMODULE u = GetModuleHandleW(L"user32.dll");
+    if (!u) return;
+    // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = (HANDLE)-4
+    typedef BOOL(WINAPI* PFN)(HANDLE);
+    if (auto fn = (PFN)GetProcAddress(u, "SetProcessDpiAwarenessContext"))
+        fn((HANDLE)-4);
+    else if (auto fn2 = (BOOL(WINAPI*)())GetProcAddress(u, "SetProcessDPIAware"))
+        fn2();
+}
+
 static bool AllocateConsoleWindow() {
     if (GetConsoleWindow()) return true;
     if (!AllocConsole()) return false;
@@ -36,6 +47,7 @@ static bool AllocateConsoleWindow() {
 }
 
 int main() {
+    EnableDpiAwareness();
     AllocateConsoleWindow();
 
     printf("==============================================\n");

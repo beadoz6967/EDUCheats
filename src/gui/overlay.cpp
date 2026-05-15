@@ -140,14 +140,14 @@ bool Overlay::CreateDeviceAndSwapchain() {
     IDXGISwapChain*      swap  = nullptr;
 
     HRESULT hr = D3D11CreateDeviceAndSwapChain(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
+        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
         levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
         &sd, &swap, &dev, &achieved, &ctx);
 
     if (FAILED(hr)) {
         // Fallback to WARP renderer for systems without a usable GPU driver
         hr = D3D11CreateDeviceAndSwapChain(
-            nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0,
+            nullptr, D3D_DRIVER_TYPE_WARP, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
             levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
             &sd, &swap, &dev, &achieved, &ctx);
     }
@@ -172,7 +172,11 @@ void Overlay::CreateRenderTarget() {
     if (FAILED(swap->GetBuffer(0, IID_PPV_ARGS(&back)))) return;
 
     ID3D11RenderTargetView* rtv = nullptr;
-    dev->CreateRenderTargetView(back, nullptr, &rtv);
+    if (FAILED(dev->CreateRenderTargetView(back, nullptr, &rtv))) {
+        back->Release();
+        printf("[Overlay] CreateRenderTargetView failed\n");
+        return;
+    }
     back->Release();
     m_renderTargetView = rtv;
 }
@@ -203,6 +207,8 @@ void Overlay::RefreshGameWindowBounds() {
     int h = r.bottom - r.top;
     if (w == m_winW && h == m_winH && m_hwnd) return;
 
+    m_winW = w;
+    m_winH = h;
     if (m_hwnd)
         SetWindowPos(m_hwnd, HWND_TOPMOST, r.left, r.top, w, h, SWP_NOACTIVATE);
 }
@@ -212,9 +218,13 @@ void Overlay::ApplyClickThrough(bool clickThrough) {
     if (m_clickThrough == clickThrough) return;
 
     LONG_PTR style = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
-    if (clickThrough) style |=  WS_EX_TRANSPARENT;
-    else              style &= ~WS_EX_TRANSPARENT;
+    if (clickThrough) {
+        style |= (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+    } else {
+        style &= ~(LONG_PTR)(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+    }
     SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, style);
+    if (!clickThrough) SetForegroundWindow(m_hwnd);
     m_clickThrough = clickThrough;
 }
 
@@ -224,7 +234,7 @@ void Overlay::ToggleMenu() {
 }
 
 void Overlay::PushPlayers(const PlayerESPData players[64], int count,
-                           int localTeam, ViewMatrix view) {
+                           int localTeam, const ViewMatrix& view) {
     std::lock_guard<std::mutex> lk(m_lock);
     for (int i = 0; i < count; ++i) m_players[i] = players[i];
     m_playerCount = count;
@@ -241,13 +251,20 @@ void Overlay::RenderFrame() {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    // ESP — draw on background draw list so nothing else overlaps it
+    // Copy snapshot under lock — render without holding it so PushPlayers never blocks for a full frame
+    PlayerESPData snapPlayers[64];
+    int snapCount, snapTeam;
+    ViewMatrix snapView;
     {
         std::lock_guard<std::mutex> lk(m_lock);
-        if (m_cfg.enabled.load()) {
-            esp_render::DrawAll(m_players, m_playerCount, m_localTeam,
-                                m_view, m_winW, m_winH, m_cfg);
-        }
+        for (int i = 0; i < m_playerCount; ++i) snapPlayers[i] = m_players[i];
+        snapCount = m_playerCount;
+        snapTeam  = m_localTeam;
+        snapView  = m_view;
+    }
+    if (m_cfg.enabled.load()) {
+        esp_render::DrawAll(snapPlayers, snapCount, snapTeam,
+                            snapView, m_winW, m_winH, m_cfg);
     }
 
     if (m_menuVisible) {
@@ -275,6 +292,20 @@ void Overlay::Run(std::atomic<bool>& running) {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Replace the blurry 13px bitmap default with Segoe UI at DPI-aware size
+    {
+        UINT dpi = GetDpiForWindow(m_hwnd);
+        if (dpi < 72) dpi = 96;
+        float sz = floorf(16.f * static_cast<float>(dpi) / 96.f);
+        ImFontConfig fc;
+        fc.OversampleH = 3;
+        fc.OversampleV = 1;
+        char path[MAX_PATH];
+        ExpandEnvironmentStringsA("%SystemRoot%\\Fonts\\segoeui.ttf", path, MAX_PATH);
+        if (!io.Fonts->AddFontFromFileTTF(path, sz, &fc))
+            io.Fonts->AddFontDefault();
+    }
 
     theme::ApplyEducanetStyle();
 
