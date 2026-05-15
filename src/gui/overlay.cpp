@@ -278,7 +278,9 @@ void Overlay::RenderFrame() {
     ctx->ClearRenderTargetView(rtv, clear);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-    swap->Present(1, 0);
+    // Present with syncInterval=0 to avoid VSync wait and reduce input latency.
+    // This makes the overlay update as soon as frames are ready (may cause tearing).
+    swap->Present(0, 0);
 }
 
 void Overlay::Run(std::atomic<bool>& running) {
