@@ -86,6 +86,7 @@ void Config::Load(ESPConfig& cfg) const {
     cfg.colorMode   = getInt ("colorMode",   cfg.colorMode.load());
     cfg.distanceESP = getBool("distanceESP", cfg.distanceESP.load());
     cfg.hpNumbers   = getBool("hpNumbers",   cfg.hpNumbers.load());
+    cfg.skeleton    = getBool("skeleton",    cfg.skeleton.load());
 }
 
 void Config::Save(const ESPConfig& cfg) const {
@@ -99,5 +100,6 @@ void Config::Save(const ESPConfig& cfg) const {
         << "healthBar="   << (cfg.healthBar.load()   ? 1 : 0) << '\n'
         << "colorMode="   <<  cfg.colorMode.load()           << '\n'
         << "distanceESP=" << (cfg.distanceESP.load() ? 1 : 0) << '\n'
-        << "hpNumbers="   << (cfg.hpNumbers.load()   ? 1 : 0) << '\n';
+        << "hpNumbers="   << (cfg.hpNumbers.load()   ? 1 : 0) << '\n'
+        << "skeleton="    << (cfg.skeleton.load()    ? 1 : 0) << '\n';
 }

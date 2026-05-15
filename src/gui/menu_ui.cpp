@@ -173,6 +173,7 @@ void Draw(ESPConfig& cfg, GameState& state, Config& persist, bool& visibleInOut)
     dirty |= ToggleRow("Health bar",     cfg.healthBar);
     dirty |= ToggleRow("HP numbers",     cfg.hpNumbers);
     dirty |= ToggleRow("Distance",       cfg.distanceESP);
+    dirty |= ToggleRow("Skeleton",       cfg.skeleton);
 
     ImGui::Dummy({ 0.f, 4.f });
 
