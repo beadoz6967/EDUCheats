@@ -35,4 +35,9 @@ struct PlayerESPData {
     std::string name;
     Vector3     origin;
     Vector3     headPos;           // origin + (0, 0, 72)
+    // Resolved bone/attachment positions (world space). Only a small
+    // fixed-size buffer is stored to avoid dynamic allocation in the
+    // real-time scan loop.
+    Vector3     bones[64];
+    int         boneCount = 0;
 };

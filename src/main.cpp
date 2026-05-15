@@ -151,6 +151,31 @@ int main() {
             d.name     = ctrl.GetName();
             d.origin   = pawn.GetOrigin();
             d.headPos  = { d.origin.x, d.origin.y, d.origin.z + 72.f };
+            // Attempt to resolve attachment-based bone positions. Read
+            // attachment handles (uint16) from the pawn structure and
+            // query the scene node tree for matching nodes.
+            d.boneCount = 0;
+            uint16_t eyeAttach = mem.Read<uint16_t>(pawnPtr + client::C_CSPlayerPawn::m_eyeAttachment);
+            uint16_t chestAttach = mem.Read<uint16_t>(pawnPtr + client::C_CSPlayerPawn::m_chestAttachment);
+            uint16_t leftFootAttach = mem.Read<uint16_t>(pawnPtr + client::C_BaseCombatCharacter::m_leftFootAttachment);
+            uint16_t rightFootAttach = mem.Read<uint16_t>(pawnPtr + client::C_BaseCombatCharacter::m_rightFootAttachment);
+
+            Vector3 tmp;
+            if (pawn.GetAttachmentWorldPos(eyeAttach, tmp)) {
+                d.bones[d.boneCount++] = tmp; // 0 = head
+                d.headPos = tmp;
+            }
+            if (pawn.GetAttachmentWorldPos(chestAttach, tmp)) {
+                d.bones[d.boneCount++] = tmp; // 1 = chest
+            }
+            if (pawn.GetAttachmentWorldPos(leftFootAttach, tmp)) {
+                d.bones[d.boneCount++] = tmp; // left foot
+            }
+            if (pawn.GetAttachmentWorldPos(rightFootAttach, tmp)) {
+                d.bones[d.boneCount++] = tmp; // right foot
+            }
+            // Add pelvis/origin as fallback bone
+            d.bones[d.boneCount++] = d.origin;
             d.distance = Distance3D(localOrigin, d.origin) * kUnitsToMeters;
             ++count;
 

@@ -164,8 +164,46 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
             DrawTextCentered(dl, { feet.x, y + boxH + 3.f }, DistanceColor(p.distance), buf);
         }
 
-        // Skeleton overlay (screen-space approximation using head/origin)
+        // Skeleton overlay — prefer resolved bone positions when available
         if (cfg.skeleton.load()) {
+            if (p.boneCount >= 2) {
+                // Try to draw a simple anatomical skeleton using common attachment
+                // ordering populated by the scan loop: 0=head, 1=chest, 2=leftFoot, 3=rightFoot, last=pelvis/origin
+                ImVec2 pts[6];
+                int projected = 0;
+                for (int b = 0; b < p.boneCount && b < 6; ++b) {
+                    ImVec2 s;
+                    if (WorldToScreen(view, p.bones[b], winW, winH, s)) {
+                        pts[projected++] = s;
+                    } else {
+                        pts[projected++] = ImVec2(-1.f, -1.f);
+                    }
+                }
+
+                ImU32 scol = col;
+                float thickness = 1.6f;
+                auto drawEdge = [&](const ImVec2& a, const ImVec2& b) {
+                    if (a.x < 0 || b.x < 0) return;
+                    dl->AddLine(a, b, IM_COL32(0,0,0,160), thickness + 1.2f);
+                    dl->AddLine(a, b, scol, thickness);
+                };
+
+                // head -> chest
+                drawEdge(pts[0], pts[1]);
+                // chest -> pelvis (last stored)
+                if (p.boneCount >= 5) drawEdge(pts[1], pts[4]);
+                // legs
+                if (p.boneCount >= 3) drawEdge(pts[1], pts[2]);
+                if (p.boneCount >= 4) drawEdge(pts[1], pts[3]);
+            } else {
+                // fallback to screen-space approximation
+                // (existing approximation code follows)
+                ;
+            }
+        }
+
+        // If skeleton was disabled or not enough bones resolved, draw the original approximation
+        if (!cfg.skeleton.load() || p.boneCount < 2) {
             auto lerp = [](const ImVec2& a, const ImVec2& b, float t) {
                 return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
             };

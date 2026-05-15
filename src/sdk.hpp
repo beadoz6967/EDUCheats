@@ -26,6 +26,18 @@ public:
         return m_mem.Read<Vector3>(m_base + client::CGameSceneNode::m_vecAbsOrigin);
     }
 
+    uintptr_t GetChild() const {
+        return m_mem.Read<uintptr_t>(m_base + client::CGameSceneNode::m_pChild);
+    }
+
+    uintptr_t GetNextSibling() const {
+        return m_mem.Read<uintptr_t>(m_base + client::CGameSceneNode::m_pNextSibling);
+    }
+
+    int16_t GetParentAttachmentOrBone() const {
+        return m_mem.Read<int16_t>(m_base + client::CGameSceneNode::m_nParentAttachmentOrBone);
+    }
+
 private:
     uintptr_t    m_base;
     const Memory& m_mem;
@@ -47,6 +59,40 @@ public:
         uintptr_t sceneNode = m_mem.Read<uintptr_t>(m_base + client::C_CSPlayerPawn::m_pGameSceneNode);
         if (!sceneNode) return m_mem.Read<Vector3>(m_base + client::C_CSPlayerPawn::m_vOldOrigin);
         return CGameSceneNode(sceneNode, m_mem).GetAbsOrigin();
+    }
+
+    // Try to resolve an attachment handle to a world-space position by
+    // walking the CGameSceneNode subtree and matching nodes whose
+    // m_nParentAttachmentOrBone equals the attachment handle.
+    // Returns true and fills out on success; false otherwise.
+    bool GetAttachmentWorldPos(uint16_t attachmentHandle, Vector3& out) const {
+        if (attachmentHandle == 0) return false;
+        uintptr_t sceneNodePtr = m_mem.Read<uintptr_t>(m_base + client::C_CSPlayerPawn::m_pGameSceneNode);
+        if (!sceneNodePtr) return false;
+
+        // Simple stack-based traversal (depth-first). Limit iterations for safety.
+        uintptr_t stack[512];
+        int sp = 0;
+        stack[sp++] = sceneNodePtr;
+        int iter = 0;
+        while (sp > 0 && iter++ < 2000) {
+            uintptr_t nodePtr = stack[--sp];
+            if (!nodePtr) continue;
+
+            CGameSceneNode node(nodePtr, m_mem);
+            int16_t parentAttach = node.GetParentAttachmentOrBone();
+            if (parentAttach == static_cast<int16_t>(attachmentHandle)) {
+                out = node.GetAbsOrigin();
+                return true;
+            }
+
+            // push siblings and children
+            uintptr_t sib = node.GetNextSibling();
+            uintptr_t child = node.GetChild();
+            if (sib) { if (sp < 512) stack[sp++] = sib; }
+            if (child) { if (sp < 512) stack[sp++] = child; }
+        }
+        return false;
     }
 
 private:
