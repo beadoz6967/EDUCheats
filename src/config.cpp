@@ -30,6 +30,25 @@ int ParseInt(std::string_view v, int fallback) {
     }
 }
 
+float ParseFloat(std::string_view v, float fallback) {
+    try {
+        return std::stof(std::string{ v });
+    } catch (...) {
+        return fallback;
+    }
+}
+
+uint32_t ParseHex(std::string_view v, uint32_t fallback) {
+    try {
+        size_t idx = 0;
+        std::string s(v);
+        unsigned long val = std::stoul(s, &idx, 0);
+        return static_cast<uint32_t>(val);
+    } catch (...) {
+        return fallback;
+    }
+}
+
 } // namespace
 
 Config::Config() : m_path(ResolvePath()) {}
@@ -87,6 +106,17 @@ void Config::Load(ESPConfig& cfg) const {
     cfg.distanceESP = getBool("distanceESP", cfg.distanceESP.load());
     cfg.hpNumbers   = getBool("hpNumbers",   cfg.hpNumbers.load());
     cfg.skeleton    = getBool("skeleton",    cfg.skeleton.load());
+
+    cfg.boxColor.store(ParseHex(kv.count("boxColor") ? kv.at("boxColor") : std::string("0"), cfg.boxColor.load()));
+    cfg.skeletonColor.store(ParseHex(kv.count("skeletonColor") ? kv.at("skeletonColor") : std::string("0"), cfg.skeletonColor.load()));
+    // floats: use ParseFloat via lambda
+    auto getFloat = [&](const char* key, float fallback) -> float {
+        const auto it = kv.find(key);
+        return it == kv.end() ? fallback : ParseFloat(it->second, fallback);
+    };
+
+    cfg.skeletonThick.store(getFloat("skeletonThick", cfg.skeletonThick.load()));
+    cfg.jointRadius.store(getFloat("jointRadius", cfg.jointRadius.load()));
 }
 
 void Config::Save(const ESPConfig& cfg) const {
@@ -101,5 +131,9 @@ void Config::Save(const ESPConfig& cfg) const {
         << "colorMode="   <<  cfg.colorMode.load()           << '\n'
         << "distanceESP=" << (cfg.distanceESP.load() ? 1 : 0) << '\n'
         << "hpNumbers="   << (cfg.hpNumbers.load()   ? 1 : 0) << '\n'
-        << "skeleton="    << (cfg.skeleton.load()    ? 1 : 0) << '\n';
+        << "skeleton="    << (cfg.skeleton.load()    ? 1 : 0) << '\n'
+        << "boxColor=0x" << std::hex << cfg.boxColor.load() << std::dec << '\n'
+        << "skeletonColor=0x" << std::hex << cfg.skeletonColor.load() << std::dec << '\n'
+        << "skeletonThick=" << cfg.skeletonThick.load() << '\n'
+        << "jointRadius="   << cfg.jointRadius.load() << '\n';
 }

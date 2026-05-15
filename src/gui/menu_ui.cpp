@@ -187,6 +187,50 @@ void Draw(ESPConfig& cfg, GameState& state, Config& persist, bool& visibleInOut)
         if (SwatchButton(" Enemy ", cm == 1, theme::kEnemyBox)) { cfg.colorMode.store(1); dirty = true; }
     }
 
+    // Custom color / thickness controls
+    {
+        ImGui::Dummy({ 0.f, 6.f });
+        ImGui::TextColored(theme::ToVec4(theme::kMuted), "Custom colors");
+
+        // Box color
+        ImVec4 defBox = theme::ToVec4(theme::kEnemyBox);
+        uint32_t packedBox = cfg.boxColor.load();
+        float boxCol[4] = { defBox.x, defBox.y, defBox.z, defBox.w };
+        if (packedBox != 0u) {
+            boxCol[0] = ((packedBox >> IM_COL32_R_SHIFT) & 0xFF) / 255.f;
+            boxCol[1] = ((packedBox >> IM_COL32_G_SHIFT) & 0xFF) / 255.f;
+            boxCol[2] = ((packedBox >> IM_COL32_B_SHIFT) & 0xFF) / 255.f;
+            boxCol[3] = ((packedBox >> IM_COL32_A_SHIFT) & 0xFF) / 255.f;
+        }
+        if (ImGui::ColorEdit4("Box color", boxCol)) {
+            uint32_t nc = IM_COL32((int)(boxCol[0]*255.f),(int)(boxCol[1]*255.f),(int)(boxCol[2]*255.f),(int)(boxCol[3]*255.f));
+            cfg.boxColor.store(nc);
+            dirty = true;
+        }
+
+        // Skeleton color
+        ImVec4 defSk = theme::ToVec4(theme::kEnemyBox);
+        uint32_t packedSk = cfg.skeletonColor.load();
+        float skCol[4] = { defSk.x, defSk.y, defSk.z, defSk.w };
+        if (packedSk != 0u) {
+            skCol[0] = ((packedSk >> IM_COL32_R_SHIFT) & 0xFF) / 255.f;
+            skCol[1] = ((packedSk >> IM_COL32_G_SHIFT) & 0xFF) / 255.f;
+            skCol[2] = ((packedSk >> IM_COL32_B_SHIFT) & 0xFF) / 255.f;
+            skCol[3] = ((packedSk >> IM_COL32_A_SHIFT) & 0xFF) / 255.f;
+        }
+        if (ImGui::ColorEdit4("Skeleton color", skCol)) {
+            uint32_t nc = IM_COL32((int)(skCol[0]*255.f),(int)(skCol[1]*255.f),(int)(skCol[2]*255.f),(int)(skCol[3]*255.f));
+            cfg.skeletonColor.store(nc);
+            dirty = true;
+        }
+
+        // Thickness and joint radius
+        float thick = cfg.skeletonThick.load();
+        if (ImGui::SliderFloat("Skeleton thickness", &thick, 0.5f, 6.0f)) { cfg.skeletonThick.store(thick); dirty = true; }
+        float jr = cfg.jointRadius.load();
+        if (ImGui::SliderFloat("Joint radius", &jr, 1.0f, 10.0f)) { cfg.jointRadius.store(jr); dirty = true; }
+    }
+
     if (dirty) persist.Save(cfg);
 
     ImGui::Dummy({ 0.f, 8.f });

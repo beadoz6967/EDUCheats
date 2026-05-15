@@ -166,39 +166,68 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
 
         // Skeleton overlay — prefer resolved bone positions when available
         if (cfg.skeleton.load()) {
+            // Prefer attachment-resolved bones when available. The scan loop
+            // typically fills attachments in this order: 0=head, 1=chest,
+            // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
+            // anatomical skeleton (spine, hips, legs) and render joints as
+            // filled circles for clarity similar to the reference overlay.
             if (p.boneCount >= 2) {
-                // Try to draw a simple anatomical skeleton using common attachment
-                // ordering populated by the scan loop: 0=head, 1=chest, 2=leftFoot, 3=rightFoot, last=pelvis/origin
-                ImVec2 pts[6];
-                int projected = 0;
-                for (int b = 0; b < p.boneCount && b < 6; ++b) {
-                    ImVec2 s;
-                    if (WorldToScreen(view, p.bones[b], winW, winH, s)) {
-                        pts[projected++] = s;
-                    } else {
-                        pts[projected++] = ImVec2(-1.f, -1.f);
-                    }
-                }
-
-                ImU32 scol = col;
-                float thickness = 1.6f;
-                auto drawEdge = [&](const ImVec2& a, const ImVec2& b) {
-                    if (a.x < 0 || b.x < 0) return;
-                    dl->AddLine(a, b, IM_COL32(0,0,0,160), thickness + 1.2f);
-                    dl->AddLine(a, b, scol, thickness);
+                auto project = [&](int idx, ImVec2& out) -> bool {
+                    if (idx < 0 || idx >= p.boneCount) return false;
+                    return WorldToScreen(view, p.bones[idx], winW, winH, out);
                 };
 
-                // head -> chest
-                drawEdge(pts[0], pts[1]);
-                // chest -> pelvis (last stored)
-                if (p.boneCount >= 5) drawEdge(pts[1], pts[4]);
-                // legs
-                if (p.boneCount >= 3) drawEdge(pts[1], pts[2]);
-                if (p.boneCount >= 4) drawEdge(pts[1], pts[3]);
-            } else {
-                // fallback to screen-space approximation
-                // (existing approximation code follows)
-                ;
+                ImVec2 headS{ -1.f, -1.f }, chestS{ -1.f, -1.f }, pelvisS{ -1.f, -1.f };
+                ImVec2 leftLegS{ -1.f, -1.f }, rightLegS{ -1.f, -1.f };
+
+                project(0, headS);
+                project(1, chestS);
+                project(p.boneCount - 1, pelvisS);
+                project(2, leftLegS);
+                project(3, rightLegS);
+
+                ImU32 scol = cfg.skeletonColor.load() != 0u ? static_cast<ImU32>(cfg.skeletonColor.load()) : col;
+                float lineThick = cfg.skeletonThick.load();
+                float jointR = cfg.jointRadius.load();
+
+                auto drawSeg = [&](const ImVec2& a, const ImVec2& b) {
+                    if (a.x < 0 || b.x < 0) return;
+                    dl->AddLine(a, b, IM_COL32(0,0,0,190), lineThick + 1.6f);
+                    dl->AddLine(a, b, scol, lineThick);
+                };
+
+                auto drawJoint = [&](const ImVec2& pnt) {
+                    if (pnt.x < 0) return;
+                    dl->AddCircleFilled(pnt, jointR + 1.0f, IM_COL32(0,0,0,200));
+                    dl->AddCircleFilled(pnt, jointR, scol);
+                    dl->AddCircle(pnt, jointR * 0.45f, IM_COL32(0,0,0,120), 0, 1.0f);
+                };
+
+                // Spine: head -> chest -> pelvis
+                drawSeg(headS, chestS);
+                drawSeg(chestS, pelvisS);
+
+                // Hips/legs: chest -> left/right leg (attachments often approximate hip->foot)
+                drawSeg(chestS, leftLegS);
+                drawSeg(chestS, rightLegS);
+
+                // Draw joints where available (prefer head, chest, pelvis, feet)
+                drawJoint(headS);
+                drawJoint(chestS);
+                drawJoint(pelvisS);
+                drawJoint(leftLegS);
+                drawJoint(rightLegS);
+
+                // If there are additional bones (e.g., hands/shoulders) try to draw
+                // short connections between consecutive resolved bones to give a
+                // fuller skeleton when the dumper returns more attachments.
+                ImVec2 prev{ -1.f, -1.f };
+                for (int b = 0; b < p.boneCount; ++b) {
+                    ImVec2 s;
+                    if (!WorldToScreen(view, p.bones[b], winW, winH, s)) continue;
+                    if (prev.x >= 0) drawSeg(prev, s);
+                    prev = s;
+                }
             }
         }
 
