@@ -106,6 +106,7 @@ int main() {
             localTeam = localCtrl.GetTeamNum();
         }
 
+
         Vector3 localOrigin{};
         uintptr_t localPawnPtr = mem.Read<uintptr_t>(clientBase + offsets::dwLocalPlayerPawn);
         if (localPawnPtr) {
@@ -128,7 +129,7 @@ int main() {
         int count = 0;
         float nearestEnemyMeters = -1.f;
 
-        for (int i = 1; i <= 64; ++i) {
+        for (int i = 1; i <= 128; ++i) {
             uintptr_t ctrlPtr = entityList.GetController(i);
             if (!ctrlPtr || ctrlPtr == localControllerPtr) continue;
 

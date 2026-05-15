@@ -63,7 +63,7 @@ public:
     uintptr_t Base() const { return m_base; }
 
     int GetTeamNum() const {
-        return m_mem.Read<int>(m_base + client::CCSPlayerController::m_iTeamNum);
+        return m_mem.Read<uint8_t>(m_base + client::CCSPlayerController::m_iTeamNum);
     }
 
     std::string GetName() const {
@@ -90,19 +90,20 @@ public:
     uintptr_t GetController(int index) const {
         // CS2 chunked entity system:
         //   chunk_array[chunkIdx] → chunk ptr
-        //   chunk[entityIdx] → entity ptr (each slot 0x78 bytes)
+        //   chunk[entityIdx] → entity ptr (each slot 0x10 bytes)
         uintptr_t chunk = m_mem.Read<uintptr_t>(m_base + 0x10 + 8 * (index >> 9));
         if (!chunk) return 0;
-        return m_mem.Read<uintptr_t>(chunk + 0x78 * (index & 0x1FF));
+        return m_mem.Read<uintptr_t>(chunk + 0x10 * (index & 0x1FF));
     }
 
     // Resolve a CHandle (u32) to a pawn pointer through the entity list
+    // CEntityIdentity stride = 0x70; m_pEntity at +0x00; handle low-15 bits = direct identity index
     uintptr_t HandleToPtr(uint32_t handle) const {
         if (handle == 0xFFFFFFFF || handle == 0) return 0;
         int index = handle & 0x7FFF;
         uintptr_t chunk = m_mem.Read<uintptr_t>(m_base + 0x10 + 8 * (index >> 9));
         if (!chunk) return 0;
-        return m_mem.Read<uintptr_t>(chunk + 0x78 * (index & 0x1FF));
+        return m_mem.Read<uintptr_t>(chunk + 0x70 * (index & 0x1FF));
     }
 
 private:

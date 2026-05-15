@@ -2,15 +2,15 @@
 #include <cstdint>
 
 // Generated from a2x/cs2-dumper — update when CS2 patches
-// Fetched: 2026-05-14
+// Fetched: 2026-05-15
 
 namespace offsets {
 
     // client.dll — global pointers (add to client.dll base)
-    constexpr uintptr_t dwEntityList           = 0x24D6FC0;  // 38604224
-    constexpr uintptr_t dwLocalPlayerController = 0x230CEF0; // 36742384
-    constexpr uintptr_t dwLocalPlayerPawn       = 0x204E100; // 33908480
-    constexpr uintptr_t dwViewMatrix            = 0x232E8E0; // 36899552
+    constexpr uintptr_t dwEntityList           = 0x24D4E80;
+    constexpr uintptr_t dwLocalPlayerController = 0x230E5C0;
+    constexpr uintptr_t dwLocalPlayerPawn       = 0x205A700;
+    constexpr uintptr_t dwViewMatrix            = 0x2334850;
 
 } // namespace offsets
 
