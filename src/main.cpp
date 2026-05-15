@@ -70,7 +70,16 @@ static void WriteBoneDebugFile(const std::string& path,
     }
 
     std::ofstream out(path, std::ios::trunc);
-    if (!out.is_open()) return;
+    if (!out.is_open()) {
+        printf("[debug] failed to open %s (err=%lu)\n", path.c_str(), GetLastError());
+        return;
+    }
+
+    static bool loggedPath = false;
+    if (!loggedPath) {
+        printf("[debug] writing bone log to %s\n", path.c_str());
+        loggedPath = true;
+    }
 
     SYSTEMTIME st{};
     GetLocalTime(&st);
@@ -114,6 +123,8 @@ static void WriteBoneDebugFile(const std::string& path,
         }
         out << "\n";
     }
+
+    out.flush();
 }
 
 static float Distance3D(const Vector3& a, const Vector3& b) {
