@@ -9,12 +9,8 @@ class Config {
 public:
     Config();
 
-    // Read config.ini into cfg. Missing file writes defaults and returns.
-    void Load(ESPConfig& cfg) const;
-
-    // Atomic-ish rewrite of config.ini from current cfg state.
-    // Cheap (~100 bytes) so safe to call on every toggle.
-    void Save(const ESPConfig& cfg) const;
+    void Load(ESPConfig& esp, AimbotConfig& ab) const;
+    void Save(const ESPConfig& esp, const AimbotConfig& ab) const;
 
     const std::string& Path() const { return m_path; }
 

@@ -101,7 +101,7 @@ bool SwatchButton(const char* label, bool active, ImU32 activeColor) {
 
 } // namespace
 
-void Draw(ESPConfig& cfg, GameState& state, Config& persist, bool& visibleInOut) {
+void Draw(ESPConfig& cfg, AimbotConfig& ab, GameState& state, Config& persist, bool& visibleInOut) {
     if (!visibleInOut) return;
 
     ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
@@ -231,7 +231,52 @@ void Draw(ESPConfig& cfg, GameState& state, Config& persist, bool& visibleInOut)
         if (ImGui::SliderFloat("Joint radius", &jr, 1.0f, 10.0f)) { cfg.jointRadius.store(jr); dirty = true; }
     }
 
-    if (dirty) persist.Save(cfg);
+    if (dirty) persist.Save(cfg, ab);
+
+    ImGui::Dummy({ 0.f, 7.f });
+
+    // AIMBOT -----------------------------------------------------------------------
+    SectionHeader("AIMBOT");
+
+    bool abDirty = false;
+    abDirty |= ToggleRow("Enable aimbot", ab.enabled);
+    abDirty |= ToggleRow("Rage mode",     ab.rageMode);
+
+    {
+        bool rage = ab.rageMode.load();
+
+        if (!rage) {
+            float fov = ab.fov.load();
+            if (ImGui::SliderFloat("FOV (deg)", &fov, 1.f, 30.f))
+                { ab.fov.store(fov); abDirty = true; }
+
+            float smooth = ab.smooth.load();
+            if (ImGui::SliderFloat("Smooth", &smooth, 1.f, 20.f))
+                { ab.smooth.store(smooth); abDirty = true; }
+        } else {
+            ImGui::TextColored(theme::ToVec4(theme::kMuted), "FOV");
+            ImGui::SameLine(160.f);
+            ImGui::TextColored(theme::ToVec4(theme::kAccentRed), "360 (rage)");
+            ImGui::TextColored(theme::ToVec4(theme::kMuted), "Smooth");
+            ImGui::SameLine(160.f);
+            ImGui::TextColored(theme::ToVec4(theme::kAccentRed), "instant (rage)");
+        }
+
+        // Bone target: Head or Chest
+        int bone = ab.boneTarget.load();
+        const char* boneNames[] = { "Head (7)", "Chest (4)" };
+        int boneIdx = (bone == 4) ? 1 : 0;
+        if (ImGui::Combo("Target bone", &boneIdx, boneNames, 2)) {
+            ab.boneTarget.store(boneIdx == 1 ? 4 : 7);
+            abDirty = true;
+        }
+
+        ImGui::TextColored(theme::ToVec4(theme::kMuted), "Hotkey");
+        ImGui::SameLine(160.f);
+        ImGui::TextColored(theme::ToVec4(theme::kWhite), "MOUSE1 (hold)");
+    }
+
+    if (abDirty) persist.Save(cfg, ab);
 
     ImGui::Dummy({ 0.f, 8.f });
 

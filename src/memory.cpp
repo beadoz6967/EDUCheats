@@ -27,7 +27,7 @@ bool Memory::Attach(const std::string& processName) {
     m_pid = FindPID(processName);
     if (!m_pid) return false;
 
-    m_handle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, FALSE, m_pid);
+    m_handle = OpenProcess(PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_QUERY_INFORMATION, FALSE, m_pid);
     return m_handle != nullptr;
 }
 

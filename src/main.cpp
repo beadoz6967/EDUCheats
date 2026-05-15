@@ -15,6 +15,7 @@
 #include "sdk.hpp"
 #include "config.hpp"
 #include "features/esp.hpp"
+#include "features/aimbot.hpp"
 #include "gui/overlay.hpp"
 
 static std::atomic<bool> g_running{ true };
@@ -181,13 +182,14 @@ int main() {
     }
     printf("[boot] client.dll base: 0x%llX\n", static_cast<unsigned long long>(clientBase));
 
-    ESPConfig espCfg;
-    GameState gameState;
-    Config    persist;
-    persist.Load(espCfg);
+    ESPConfig    espCfg;
+    AimbotConfig aimbotCfg;
+    GameState    gameState;
+    Config       persist;
+    persist.Load(espCfg, aimbotCfg);
     printf("[boot] Config loaded from %s\n", persist.Path().c_str());
 
-    Overlay overlay(mem, clientBase, espCfg, gameState, persist);
+    Overlay overlay(mem, clientBase, espCfg, aimbotCfg, gameState, persist);
 
     // Overlay runs on its own thread so the entity scan loop never blocks
     // on Present() or message processing.
@@ -212,11 +214,24 @@ int main() {
 
 
         Vector3 localOrigin{};
+        Vector3 eyePos{};
+        Vector3 viewAngles{};
         uintptr_t localPawnPtr = mem.Read<uintptr_t>(clientBase + offsets::dwLocalPlayerPawn);
         if (localPawnPtr) {
             C_CSPlayerPawn localPawn(localPawnPtr, mem);
             localOrigin = localPawn.GetOrigin();
+
+            // Eye position: scene node origin + per-pawn view offset vector
+            uintptr_t sceneNode = mem.Read<uintptr_t>(localPawnPtr + client::C_CSPlayerPawn::m_pGameSceneNode);
+            if (sceneNode) {
+                Vector3 snOrigin = mem.Read<Vector3>(sceneNode + client::CGameSceneNode::m_vecAbsOrigin);
+                Vector3 viewOff  = mem.Read<Vector3>(localPawnPtr + client::C_CSPlayerPawn::m_vecViewOffset);
+                eyePos = { snOrigin.x + viewOff.x, snOrigin.y + viewOff.y, snOrigin.z + viewOff.z };
+            } else {
+                eyePos = { localOrigin.x, localOrigin.y, localOrigin.z + 64.f };
+            }
         }
+        viewAngles = mem.Read<Vector3>(clientBase + offsets::dwViewAngles);
 
         // Read the view matrix here so the overlay always has a fresh copy
         ViewMatrix view{};
@@ -290,6 +305,25 @@ int main() {
         overlay.PushPlayers(players, count, localTeam, view);
         WriteBoneDebugFile(boneDebugPath, players, count, localTeam, matrixOk, nearestEnemyMeters, localOrigin);
 
+        // Aimbot — runs only when alive, matrix valid, hotkey held
+        if (aimbotCfg.enabled.load() && matrixOk && localPawnPtr) {
+            C_CSPlayerPawn localPawn(localPawnPtr, mem);
+            if (localPawn.IsAlive() && (GetAsyncKeyState(aimbotCfg.key.load()) & 0x8000)) {
+                bool  rage    = aimbotCfg.rageMode.load();
+                float fov     = rage ? 360.f : aimbotCfg.fov.load();
+                float smooth  = rage ? 1.f   : aimbotCfg.smooth.load();
+                int   boneIdx = aimbotCfg.boneTarget.load();
+
+                int target = aimbot::SelectTarget(players, count, eyePos, viewAngles, fov, boneIdx);
+                if (target >= 0) {
+                    Vector3 aimed = aimbot::CalcAngle(eyePos, players[target].bones[boneIdx]);
+                    Vector3 final = aimbot::SmoothAngle(viewAngles, aimed, smooth);
+                    aimbot::NormalizeAngles(final);
+                    mem.Write<Vector3>(clientBase + offsets::dwViewAngles, final);
+                }
+            }
+        }
+
         // Periodic status log every ~2 seconds when state changes meaningfully
         ++loggedFrames;
         if (loggedFrames >= 256) {
@@ -316,7 +350,7 @@ int main() {
     }
 
     overlayThread.join();
-    persist.Save(espCfg);
+    persist.Save(espCfg, aimbotCfg);
     printf("[boot] Shutdown clean.\n");
     return 0;
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "../sdk.hpp"
+#include <Windows.h>
 #include <atomic>
 #include <string>
 
@@ -23,6 +24,15 @@ struct ESPConfig {
     std::atomic<uint32_t> skeletonColor   { 0u };
     std::atomic<float>    skeletonThick   { 1.6f };
     std::atomic<float>    jointRadius     { 2.5f };
+};
+
+struct AimbotConfig {
+    std::atomic<bool>  enabled    { false };
+    std::atomic<int>   key        { VK_LBUTTON };
+    std::atomic<float> fov        { 5.0f };    // degrees; legit 3-8, rage 360
+    std::atomic<float> smooth     { 5.0f };    // divisor; 1=instant, higher=slower
+    std::atomic<bool>  rageMode   { false };   // rage: fov=360, smooth=1
+    std::atomic<int>   boneTarget { 7     };   // 7=head, 4=chest
 };
 
 // Live runtime state shared with the menu UI (not persisted).

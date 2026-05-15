@@ -31,6 +31,12 @@ public:
                                  buffer, size, &bytesRead) && bytesRead == size;
     }
 
+    template<typename T>
+    bool Write(uintptr_t address, const T& value) const {
+        return WriteProcessMemory(m_handle, reinterpret_cast<LPVOID>(address),
+                                  &value, sizeof(T), nullptr) != 0;
+    }
+
     std::string ReadString(uintptr_t address, size_t maxLen = 128) const;
 
     DWORD GetPID() const { return m_pid; }

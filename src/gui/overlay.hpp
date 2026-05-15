@@ -14,7 +14,7 @@
 class Overlay {
 public:
     Overlay(const Memory& mem, uintptr_t clientBase,
-            ESPConfig& cfg, GameState& state, Config& persist);
+            ESPConfig& cfg, AimbotConfig& ab, GameState& state, Config& persist);
     ~Overlay();
 
     Overlay(const Overlay&)            = delete;
@@ -45,6 +45,7 @@ private:
     const Memory& m_mem;
     uintptr_t     m_clientBase;
     ESPConfig&    m_cfg;
+    AimbotConfig& m_ab;
     GameState&    m_state;
     Config&       m_persist;
 

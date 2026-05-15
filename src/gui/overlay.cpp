@@ -47,9 +47,9 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 Overlay::Overlay(const Memory& mem, uintptr_t clientBase,
-                 ESPConfig& cfg, GameState& state, Config& persist)
+                 ESPConfig& cfg, AimbotConfig& ab, GameState& state, Config& persist)
     : m_mem(mem), m_clientBase(clientBase),
-      m_cfg(cfg), m_state(state), m_persist(persist) {}
+      m_cfg(cfg), m_ab(ab), m_state(state), m_persist(persist) {}
 
 Overlay::~Overlay() {
     if (m_device) {
@@ -268,7 +268,7 @@ void Overlay::RenderFrame() {
     }
 
     if (m_menuVisible) {
-        menu_ui::Draw(m_cfg, m_state, m_persist, m_menuVisible);
+        menu_ui::Draw(m_cfg, m_ab, m_state, m_persist, m_menuVisible);
     }
 
     ImGui::Render();

@@ -11,6 +11,7 @@ namespace offsets {
     constexpr uintptr_t dwLocalPlayerController = 0x230E5C0;
     constexpr uintptr_t dwLocalPlayerPawn       = 0x205A700;
     constexpr uintptr_t dwViewMatrix            = 0x2334850;
+    constexpr uintptr_t dwViewAngles            = 0x23444F8; // CCSGOInput::m_vecViewAngles — write here for aimbot
 
 } // namespace offsets
 
@@ -29,9 +30,8 @@ namespace client {
         constexpr uintptr_t m_iHealth        = 0x34C; // 844
         constexpr uintptr_t m_lifeState      = 0x354; // 852 — 256 = alive
         constexpr uintptr_t m_vOldOrigin     = 0x1390;// 5008 — Vector3, used as fallback origin
-        // Attachment handles (from dumper): eye/chest
-        constexpr uintptr_t m_eyeAttachment  = 0x1299; // AttachmentHandle_t (uint16)
-        constexpr uintptr_t m_chestAttachment = 0x129A; // AttachmentHandle_t (uint16)
+        constexpr uintptr_t v_angle          = 0x12A8; // C_BasePlayerPawn::v_angle — current view {pitch,yaw,0}
+        constexpr uintptr_t m_vecViewOffset  = 0xE70;  // C_BaseModelEntity — add to sceneNode origin for eye pos
     }
 
     // CGameSceneNode
