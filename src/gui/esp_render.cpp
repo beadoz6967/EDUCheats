@@ -163,6 +163,69 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
             std::snprintf(buf, sizeof(buf), "%.0fm", p.distance);
             DrawTextCentered(dl, { feet.x, y + boxH + 3.f }, DistanceColor(p.distance), buf);
         }
+
+        // Skeleton overlay (screen-space approximation using head/origin)
+        if (cfg.skeleton.load()) {
+            auto lerp = [](const ImVec2& a, const ImVec2& b, float t) {
+                return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+            };
+
+            ImVec2 headS = head;
+            ImVec2 feetS = feet;
+            ImVec2 neckS  = lerp(headS, feetS, 0.18f);
+            ImVec2 chestS = lerp(headS, feetS, 0.34f);
+            ImVec2 pelvisS = lerp(headS, feetS, 0.56f);
+
+            ImVec2 leftShoulder  = ImVec2(chestS.x - boxW * 0.55f, chestS.y);
+            ImVec2 rightShoulder = ImVec2(chestS.x + boxW * 0.55f, chestS.y);
+
+            ImVec2 leftHip  = ImVec2(pelvisS.x - boxW * 0.25f, pelvisS.y);
+            ImVec2 rightHip = ImVec2(pelvisS.x + boxW * 0.25f, pelvisS.y);
+
+            ImVec2 leftKnee  = lerp(leftHip, feetS, 0.55f);
+            ImVec2 rightKnee = lerp(rightHip, feetS, 0.55f);
+
+            ImVec2 leftFoot  = ImVec2(feetS.x - boxW * 0.20f, feetS.y);
+            ImVec2 rightFoot = ImVec2(feetS.x + boxW * 0.20f, feetS.y);
+
+            ImU32 scol = col;
+            float thickness = 1.6f;
+
+            // Spine
+            dl->AddLine(headS, neckS, IM_COL32(0,0,0,180), thickness + 1.2f);
+            dl->AddLine(headS, neckS, scol, thickness);
+            dl->AddLine(neckS, chestS, IM_COL32(0,0,0,180), thickness + 1.2f);
+            dl->AddLine(neckS, chestS, scol, thickness);
+            dl->AddLine(chestS, pelvisS, IM_COL32(0,0,0,180), thickness + 1.2f);
+            dl->AddLine(chestS, pelvisS, scol, thickness);
+
+            // Arms
+            dl->AddLine(chestS, leftShoulder, IM_COL32(0,0,0,160), thickness + 1.2f);
+            dl->AddLine(chestS, leftShoulder, scol, thickness);
+            dl->AddLine(chestS, rightShoulder, IM_COL32(0,0,0,160), thickness + 1.2f);
+            dl->AddLine(chestS, rightShoulder, scol, thickness);
+
+            dl->AddLine(leftShoulder, lerp(leftShoulder, pelvisS, 0.25f), IM_COL32(0,0,0,140), thickness + 1.2f);
+            dl->AddLine(leftShoulder, lerp(leftShoulder, pelvisS, 0.25f), scol, thickness);
+            dl->AddLine(rightShoulder, lerp(rightShoulder, pelvisS, 0.25f), IM_COL32(0,0,0,140), thickness + 1.2f);
+            dl->AddLine(rightShoulder, lerp(rightShoulder, pelvisS, 0.25f), scol, thickness);
+
+            // Hips -> legs
+            dl->AddLine(pelvisS, leftHip, IM_COL32(0,0,0,160), thickness + 1.2f);
+            dl->AddLine(pelvisS, leftHip, scol, thickness);
+            dl->AddLine(pelvisS, rightHip, IM_COL32(0,0,0,160), thickness + 1.2f);
+            dl->AddLine(pelvisS, rightHip, scol, thickness);
+
+            dl->AddLine(leftHip, leftKnee, IM_COL32(0,0,0,140), thickness + 1.2f);
+            dl->AddLine(leftHip, leftKnee, scol, thickness);
+            dl->AddLine(rightHip, rightKnee, IM_COL32(0,0,0,140), thickness + 1.2f);
+            dl->AddLine(rightHip, rightKnee, scol, thickness);
+
+            dl->AddLine(leftKnee, leftFoot, IM_COL32(0,0,0,140), thickness + 1.2f);
+            dl->AddLine(leftKnee, leftFoot, scol, thickness);
+            dl->AddLine(rightKnee, rightFoot, IM_COL32(0,0,0,140), thickness + 1.2f);
+            dl->AddLine(rightKnee, rightFoot, scol, thickness);
+        }
     }
 }
 

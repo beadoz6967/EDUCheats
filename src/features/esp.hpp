@@ -15,6 +15,8 @@ struct ESPConfig {
     std::atomic<int>  colorMode   { 0    };
     std::atomic<bool> distanceESP { true };
     std::atomic<bool> hpNumbers   { true };
+    // Toggle skeleton lines (independent of box settings)
+    std::atomic<bool> skeleton    { true };
 };
 
 // Live runtime state shared with the menu UI (not persisted).
