@@ -220,10 +220,7 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
             // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
             // anatomical skeleton (spine, hips, legs) and render joints as
             // filled circles for clarity similar to the reference overlay.
-            if (p.boneCount >= 2) {
-                // existing resolved bones drawing follows
-                
-                
+            
             // Prefer attachment-resolved bones when available. The scan loop
             // typically fills attachments in this order: 0=head, 1=chest,
             // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
