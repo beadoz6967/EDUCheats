@@ -37,6 +37,7 @@ namespace client {
     // CGameSceneNode
     namespace CGameSceneNode {
         constexpr uintptr_t m_vecAbsOrigin = 0xC8; // 200 — Vector3 world position
+        constexpr uintptr_t m_modelState = 0x150; // CModelState
         constexpr uintptr_t m_pChild = 0x40; // child pointer
         constexpr uintptr_t m_pNextSibling = 0x48; // next sibling pointer
         constexpr uintptr_t m_nParentAttachmentOrBone = 0x100; // int16

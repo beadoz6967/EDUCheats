@@ -58,30 +58,13 @@ static std::string HexDump(const uint8_t* data, size_t size, uintptr_t baseAddre
     return out.str();
 }
 
-struct BoneDebugEntry {
-    std::string name;
-    uint16_t eyeAttach = 0;
-    uint16_t chestAttach = 0;
-    uint16_t leftFootAttach = 0;
-    uint16_t rightFootAttach = 0;
-    bool eyeResolved = false;
-    bool chestResolved = false;
-    bool leftFootResolved = false;
-    bool rightFootResolved = false;
-    Vector3 eyePos{};
-    Vector3 chestPos{};
-    Vector3 leftFootPos{};
-    Vector3 rightFootPos{};
-    std::string eyeTrace;
-    std::string chestTrace;
-    std::string leftFootTrace;
-    std::string rightFootTrace;
-    std::string pawnWindowDump;
+struct BoneData {
+    Vector3 pos;
+    uint8_t pad[0x14]{};
 };
 
 static void WriteBoneDebugFile(const std::string& path,
                                const PlayerESPData players[64],
-                               const BoneDebugEntry debugEntries[64],
                                int count,
                                int localTeam,
                                bool matrixOk,
@@ -128,20 +111,6 @@ static void WriteBoneDebugFile(const std::string& path,
         out << "origin=" << p.origin.x << "," << p.origin.y << "," << p.origin.z << "\n";
         out << "head=" << p.headPos.x << "," << p.headPos.y << "," << p.headPos.z << "\n";
         out << "boneCount=" << p.boneCount << "\n";
-        const BoneDebugEntry& d = debugEntries[i];
-        out << "eyeAttach=" << d.eyeAttach << " resolved=" << (d.eyeResolved ? 1 : 0)
-            << " pos=" << d.eyePos.x << "," << d.eyePos.y << "," << d.eyePos.z << "\n";
-        out << "chestAttach=" << d.chestAttach << " resolved=" << (d.chestResolved ? 1 : 0)
-            << " pos=" << d.chestPos.x << "," << d.chestPos.y << "," << d.chestPos.z << "\n";
-        out << "leftFootAttach=" << d.leftFootAttach << " resolved=" << (d.leftFootResolved ? 1 : 0)
-            << " pos=" << d.leftFootPos.x << "," << d.leftFootPos.y << "," << d.leftFootPos.z << "\n";
-        out << "rightFootAttach=" << d.rightFootAttach << " resolved=" << (d.rightFootResolved ? 1 : 0)
-            << " pos=" << d.rightFootPos.x << "," << d.rightFootPos.y << "," << d.rightFootPos.z << "\n";
-        out << "[eye trace]\n" << d.eyeTrace << "\n";
-        out << "[chest trace]\n" << d.chestTrace << "\n";
-        out << "[leftFoot trace]\n" << d.leftFootTrace << "\n";
-        out << "[rightFoot trace]\n" << d.rightFootTrace << "\n";
-        out << "[pawn window 0x1160-0x13BF]\n" << d.pawnWindowDump << "\n";
         for (int b = 0; b < p.boneCount && b < 64; ++b) {
             out << "bone[" << b << "]=" << p.bones[b].x << "," << p.bones[b].y << "," << p.bones[b].z << "\n";
         }
@@ -261,7 +230,6 @@ int main() {
         gameState.matrixOk.store(matrixOk);
 
         PlayerESPData players[64]{};
-        BoneDebugEntry boneDebug[64]{};
         int count = 0;
         float nearestEnemyMeters = -1.f;
 
@@ -281,42 +249,34 @@ int main() {
             if (!pawn.IsAlive()) continue;
 
             PlayerESPData& d = players[count];
-            BoneDebugEntry& bd = boneDebug[count];
             d.alive    = true;
             d.isEnemy  = (team != localTeam);
             d.health   = std::clamp(pawn.GetHealth(), 0, 100);
             d.name     = ctrl.GetName();
-            bd.name    = d.name;
             d.origin   = pawn.GetOrigin();
             d.headPos  = { d.origin.x, d.origin.y, d.origin.z + 72.f };
-            // Attempt to resolve attachment-based bone positions. Read
-            // attachment handles (uint16) from the pawn structure and
-            // query the scene node tree for matching nodes.
-            d.boneCount = 0;
-            bd.eyeAttach = mem.Read<uint16_t>(pawnPtr + client::C_CSPlayerPawn::m_eyeAttachment);
-            bd.chestAttach = mem.Read<uint16_t>(pawnPtr + client::C_CSPlayerPawn::m_chestAttachment);
-            bd.leftFootAttach = mem.Read<uint16_t>(pawnPtr + client::C_BaseCombatCharacter::m_leftFootAttachment);
-            bd.rightFootAttach = mem.Read<uint16_t>(pawnPtr + client::C_BaseCombatCharacter::m_rightFootAttachment);
+            d.boneCount = 1;
+            d.bones[0]  = d.origin;
 
-            Vector3 tmp;
-            bd.eyeResolved = pawn.GetAttachmentWorldPosDebug(bd.eyeAttach, bd.eyePos, bd.eyeTrace);
-            bd.chestResolved = pawn.GetAttachmentWorldPosDebug(bd.chestAttach, bd.chestPos, bd.chestTrace);
-            bd.leftFootResolved = pawn.GetAttachmentWorldPosDebug(bd.leftFootAttach, bd.leftFootPos, bd.leftFootTrace);
-            bd.rightFootResolved = pawn.GetAttachmentWorldPosDebug(bd.rightFootAttach, bd.rightFootPos, bd.rightFootTrace);
+            uintptr_t gameScene = mem.Read<uintptr_t>(pawnPtr + client::C_CSPlayerPawn::m_pGameSceneNode);
+            if (gameScene) {
+                uintptr_t boneArray = mem.Read<uintptr_t>(gameScene + client::CGameSceneNode::m_modelState + 0x80);
+                if (boneArray) {
+                    BoneData rawBones[30]{};
+                    if (mem.ReadBuffer(boneArray, rawBones, sizeof(rawBones))) {
+                        d.boneCount = 30;
+                        for (int b = 0; b < 30; ++b) {
+                            d.bones[b] = rawBones[b].pos;
+                        }
 
-            uint8_t pawnWindow[0x260]{};
-            if (mem.ReadBuffer(pawnPtr + 0x1160, pawnWindow, sizeof(pawnWindow))) {
-                bd.pawnWindowDump = HexDump(pawnWindow, sizeof(pawnWindow), pawnPtr + 0x1160);
-            } else {
-                bd.pawnWindowDump = "failed to read pawn window 0x1160-0x13BF";
+                        constexpr int kHead = 7;
+                        if (kHead < d.boneCount) {
+                            d.headPos = d.bones[kHead];
+                        }
+                    }
+                }
             }
 
-            if (bd.eyeResolved) { d.bones[d.boneCount++] = bd.eyePos; d.headPos = bd.eyePos; }
-            if (bd.chestResolved) { d.bones[d.boneCount++] = bd.chestPos; }
-            if (bd.leftFootResolved) { d.bones[d.boneCount++] = bd.leftFootPos; }
-            if (bd.rightFootResolved) { d.bones[d.boneCount++] = bd.rightFootPos; }
-            // Add pelvis/origin as fallback bone
-            d.bones[d.boneCount++] = d.origin;
             d.distance = Distance3D(localOrigin, d.origin) * kUnitsToMeters;
             ++count;
 
@@ -328,7 +288,7 @@ int main() {
         gameState.nearestEnemyDist.store(nearestEnemyMeters);
         gameState.entityCount.store(count);
         overlay.PushPlayers(players, count, localTeam, view);
-        WriteBoneDebugFile(boneDebugPath, players, boneDebug, count, localTeam, matrixOk, nearestEnemyMeters, localOrigin);
+        WriteBoneDebugFile(boneDebugPath, players, count, localTeam, matrixOk, nearestEnemyMeters, localOrigin);
 
         // Periodic status log every ~2 seconds when state changes meaningfully
         ++loggedFrames;

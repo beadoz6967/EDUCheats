@@ -22,7 +22,7 @@ struct ESPConfig {
     std::atomic<uint32_t> boxColor        { 0u };
     std::atomic<uint32_t> skeletonColor   { 0u };
     std::atomic<float>    skeletonThick   { 1.6f };
-    std::atomic<float>    jointRadius     { 4.0f };
+    std::atomic<float>    jointRadius     { 2.5f };
 };
 
 // Live runtime state shared with the menu UI (not persisted).

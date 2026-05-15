@@ -165,189 +165,97 @@ void DrawAll(const PlayerESPData players[64], int count, int localTeam,
             DrawTextCentered(dl, { feet.x, y + boxH + 3.f }, DistanceColor(p.distance), buf);
         }
 
-        // Always draw a dynamic fallback skeleton approximation so movement is
-        // visible even when attachment resolution fails or is stale.
         if (cfg.skeleton.load()) {
-            // Fallback approximation (thin, subtle) — always based on head and feet
-            auto drawApprox = [&]() {
+            ImU32 scol      = cfg.skeletonColor.load() != 0u
+                              ? static_cast<ImU32>(cfg.skeletonColor.load()) : col;
+            float lineThick = cfg.skeletonThick.load();
+            float jointR    = cfg.jointRadius.load();
+
+            auto drawSeg = [&](const ImVec2& a, const ImVec2& b) {
+                dl->AddLine(a, b, IM_COL32(0,0,0,190), lineThick + 1.6f);
+                dl->AddLine(a, b, scol, lineThick);
+            };
+            auto drawJoint = [&](const ImVec2& pt) {
+                dl->AddCircleFilled(pt, jointR + 1.0f, IM_COL32(0,0,0,200));
+                dl->AddCircleFilled(pt, jointR, scol);
+            };
+
+            if (p.boneCount == 30) {
+                // Real skeleton from model-state bone array.
+                // CS2 player model indices (head = 7, verified against current offsets):
+                //   0=pelvis  1=butt  2=spine_0  3=spine_1  4=spine_2(chest)
+                //   5=spine_3 6=neck  7=head
+                //   8=clavicle_L  9=upper_arm_L  10=lower_arm_L  11=hand_L
+                //   12=clavicle_R 13=upper_arm_R  14=lower_arm_R  15=hand_R
+                //   16=thigh_L  17=shin_L  18=ankle_L
+                //   20=thigh_R  21=shin_R  22=ankle_R
+                static constexpr std::pair<int,int> kEdges[] = {
+                    // spine: bone[1]=pelvis(z≈39) up to bone[7]=head
+                    {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}, {6, 7},
+                    // left arm
+                    {4, 8}, {8, 9}, {9, 10}, {10, 11},
+                    // right arm
+                    {4, 12}, {12, 13}, {13, 14}, {14, 15},
+                    // left leg: bone[1]=pelvis -> 17=upper thigh -> 18=knee -> 19=ankle
+                    {1, 17}, {17, 18}, {18, 19},
+                    // right leg: bone[1]=pelvis -> 20=upper thigh -> 21=knee -> 22=ankle
+                    {1, 20}, {20, 21}, {21, 22},
+                };
+                // head, chest, pelvis, elbows, knees
+                static constexpr int kJointNodes[] = {
+                    7, 4, 1, 10, 14, 18, 21
+                };
+
+                ImVec2 bs[30]{};
+                bool   ok[30]{};
+                for (int b = 0; b < 30; ++b)
+                    ok[b] = WorldToScreen(view, p.bones[b], winW, winH, bs[b]);
+
+                for (auto& [a, b] : kEdges)
+                    if (ok[a] && ok[b])
+                        drawSeg(bs[a], bs[b]);
+
+                for (int j : kJointNodes)
+                    if (ok[j])
+                        drawJoint(bs[j]);
+
+            } else {
+                // Approximation when bones unavailable: derive joints from head/feet screen pos.
                 auto lerp = [](const ImVec2& a, const ImVec2& b, float t) {
                     return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
                 };
-
-                ImVec2 headS = head;
-                ImVec2 feetS = feet;
-                ImVec2 neckS  = lerp(headS, feetS, 0.18f);
-                ImVec2 chestS = lerp(headS, feetS, 0.34f);
-                ImVec2 pelvisS = lerp(headS, feetS, 0.56f);
-
-                ImVec2 leftShoulder  = ImVec2(chestS.x - boxW * 0.55f, chestS.y);
-                ImVec2 rightShoulder = ImVec2(chestS.x + boxW * 0.55f, chestS.y);
-
-                ImVec2 leftHip  = ImVec2(pelvisS.x - boxW * 0.25f, pelvisS.y);
-                ImVec2 rightHip = ImVec2(pelvisS.x + boxW * 0.25f, pelvisS.y);
-
-                ImVec2 leftKnee  = lerp(leftHip, feetS, 0.55f);
-                ImVec2 rightKnee = lerp(rightHip, feetS, 0.55f);
-
-                ImVec2 leftFoot  = ImVec2(feetS.x - boxW * 0.20f, feetS.y);
-                ImVec2 rightFoot = ImVec2(feetS.x + boxW * 0.20f, feetS.y);
-
-                ImU32 apropCol = cfg.skeletonColor.load() != 0u ? static_cast<ImU32>(cfg.skeletonColor.load()) : col;
-                float apropTh = std::max(0.8f, cfg.skeletonThick.load() * 0.55f);
-
-                auto drawLine = [&](const ImVec2& a, const ImVec2& b) {
-                    if (a.x < 0 || b.x < 0) return;
-                    dl->AddLine(a, b, IM_COL32(0,0,0,140), apropTh + 0.9f);
-                    dl->AddLine(a, b, apropCol, apropTh);
+                float th = std::max(0.8f, lineThick * 0.55f);
+                auto drawApproxSeg = [&](const ImVec2& a, const ImVec2& b) {
+                    dl->AddLine(a, b, IM_COL32(0,0,0,140), th + 0.9f);
+                    dl->AddLine(a, b, scol, th);
                 };
 
-                drawLine(headS, neckS);
-                drawLine(neckS, chestS);
-                drawLine(chestS, pelvisS);
-                drawLine(chestS, leftShoulder);
-                drawLine(chestS, rightShoulder);
-                drawLine(chestS, leftHip);
-                drawLine(chestS, rightHip);
-                drawLine(leftHip, leftKnee);
-                drawLine(rightHip, rightKnee);
-                drawLine(leftKnee, leftFoot);
-                drawLine(rightKnee, rightFoot);
-            };
-            drawApprox();
+                ImVec2 neckS   = lerp(head, feet, 0.18f);
+                ImVec2 chestS  = lerp(head, feet, 0.34f);
+                ImVec2 pelvisS = lerp(head, feet, 0.56f);
+                ImVec2 lShld   = { chestS.x - boxW * 0.55f, chestS.y };
+                ImVec2 rShld   = { chestS.x + boxW * 0.55f, chestS.y };
+                ImVec2 lHip    = { pelvisS.x - boxW * 0.25f, pelvisS.y };
+                ImVec2 rHip    = { pelvisS.x + boxW * 0.25f, pelvisS.y };
+                ImVec2 lKnee   = lerp(lHip, feet, 0.55f);
+                ImVec2 rKnee   = lerp(rHip, feet, 0.55f);
+                ImVec2 lFoot   = { feet.x - boxW * 0.20f, feet.y };
+                ImVec2 rFoot   = { feet.x + boxW * 0.20f, feet.y };
 
-            // Prefer resolved bone positions when available. The scan loop
-            // typically fills attachments in this order: 0=head, 1=chest,
-            // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
-            // anatomical skeleton (spine, hips, legs) and render joints as
-            // filled circles for clarity similar to the reference overlay.
-            
-            // Prefer attachment-resolved bones when available. The scan loop
-            // typically fills attachments in this order: 0=head, 1=chest,
-            // 2=leftFoot, 3=rightFoot, last=pelvis/origin. We'll draw a small
-            // anatomical skeleton (spine, hips, legs) and render joints as
-            // filled circles for clarity similar to the reference overlay.
-            if (p.boneCount >= 2) {
-                auto project = [&](int idx, ImVec2& out) -> bool {
-                    if (idx < 0 || idx >= p.boneCount) return false;
-                    return WorldToScreen(view, p.bones[idx], winW, winH, out);
-                };
-
-                ImVec2 headS{ -1.f, -1.f }, chestS{ -1.f, -1.f }, pelvisS{ -1.f, -1.f };
-                ImVec2 leftLegS{ -1.f, -1.f }, rightLegS{ -1.f, -1.f };
-
-                project(0, headS);
-                project(1, chestS);
-                project(p.boneCount - 1, pelvisS);
-                project(2, leftLegS);
-                project(3, rightLegS);
-
-                ImU32 scol = cfg.skeletonColor.load() != 0u ? static_cast<ImU32>(cfg.skeletonColor.load()) : col;
-                float lineThick = cfg.skeletonThick.load();
-                float jointR = cfg.jointRadius.load();
-
-                auto drawSeg = [&](const ImVec2& a, const ImVec2& b) {
-                    if (a.x < 0 || b.x < 0) return;
-                    dl->AddLine(a, b, IM_COL32(0,0,0,190), lineThick + 1.6f);
-                    dl->AddLine(a, b, scol, lineThick);
-                };
-
-                auto drawJoint = [&](const ImVec2& pnt) {
-                    if (pnt.x < 0) return;
-                    dl->AddCircleFilled(pnt, jointR + 1.0f, IM_COL32(0,0,0,200));
-                    dl->AddCircleFilled(pnt, jointR, scol);
-                    dl->AddCircle(pnt, jointR * 0.45f, IM_COL32(0,0,0,120), 0, 1.0f);
-                };
-
-                // Spine: head -> chest -> pelvis
-                drawSeg(headS, chestS);
-                drawSeg(chestS, pelvisS);
-
-                // Hips/legs: chest -> left/right leg (attachments often approximate hip->foot)
-                drawSeg(chestS, leftLegS);
-                drawSeg(chestS, rightLegS);
-
-                // Draw joints where available (prefer head, chest, pelvis, feet)
-                drawJoint(headS);
-                drawJoint(chestS);
-                drawJoint(pelvisS);
-                drawJoint(leftLegS);
-                drawJoint(rightLegS);
-
-                // If there are additional bones (e.g., hands/shoulders) try to draw
-                // short connections between consecutive resolved bones to give a
-                // fuller skeleton when the dumper returns more attachments.
-                ImVec2 prev{ -1.f, -1.f };
-                for (int b = 0; b < p.boneCount; ++b) {
-                    ImVec2 s;
-                    if (!WorldToScreen(view, p.bones[b], winW, winH, s)) continue;
-                    if (prev.x >= 0) drawSeg(prev, s);
-                    prev = s;
-                }
+                drawApproxSeg(head,   neckS);
+                drawApproxSeg(neckS,  chestS);
+                drawApproxSeg(chestS, pelvisS);
+                drawApproxSeg(chestS, lShld);
+                drawApproxSeg(chestS, rShld);
+                drawApproxSeg(lShld,  lerp(lShld, pelvisS, 0.25f));
+                drawApproxSeg(rShld,  lerp(rShld, pelvisS, 0.25f));
+                drawApproxSeg(pelvisS, lHip);
+                drawApproxSeg(pelvisS, rHip);
+                drawApproxSeg(lHip,   lKnee);
+                drawApproxSeg(rHip,   rKnee);
+                drawApproxSeg(lKnee,  lFoot);
+                drawApproxSeg(rKnee,  rFoot);
             }
-        }
-
-        // If skeleton is enabled but not enough bones were resolved, draw the original approximation
-        // When skeleton is disabled, do not draw any skeleton lines.
-        if (cfg.skeleton.load() && p.boneCount < 2) {
-            auto lerp = [](const ImVec2& a, const ImVec2& b, float t) {
-                return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
-            };
-
-            ImVec2 headS = head;
-            ImVec2 feetS = feet;
-            ImVec2 neckS  = lerp(headS, feetS, 0.18f);
-            ImVec2 chestS = lerp(headS, feetS, 0.34f);
-            ImVec2 pelvisS = lerp(headS, feetS, 0.56f);
-
-            ImVec2 leftShoulder  = ImVec2(chestS.x - boxW * 0.55f, chestS.y);
-            ImVec2 rightShoulder = ImVec2(chestS.x + boxW * 0.55f, chestS.y);
-
-            ImVec2 leftHip  = ImVec2(pelvisS.x - boxW * 0.25f, pelvisS.y);
-            ImVec2 rightHip = ImVec2(pelvisS.x + boxW * 0.25f, pelvisS.y);
-
-            ImVec2 leftKnee  = lerp(leftHip, feetS, 0.55f);
-            ImVec2 rightKnee = lerp(rightHip, feetS, 0.55f);
-
-            ImVec2 leftFoot  = ImVec2(feetS.x - boxW * 0.20f, feetS.y);
-            ImVec2 rightFoot = ImVec2(feetS.x + boxW * 0.20f, feetS.y);
-
-            ImU32 scol = col;
-            float thickness = 1.6f;
-
-            // Spine
-            dl->AddLine(headS, neckS, IM_COL32(0,0,0,180), thickness + 1.2f);
-            dl->AddLine(headS, neckS, scol, thickness);
-            dl->AddLine(neckS, chestS, IM_COL32(0,0,0,180), thickness + 1.2f);
-            dl->AddLine(neckS, chestS, scol, thickness);
-            dl->AddLine(chestS, pelvisS, IM_COL32(0,0,0,180), thickness + 1.2f);
-            dl->AddLine(chestS, pelvisS, scol, thickness);
-
-            // Arms
-            dl->AddLine(chestS, leftShoulder, IM_COL32(0,0,0,160), thickness + 1.2f);
-            dl->AddLine(chestS, leftShoulder, scol, thickness);
-            dl->AddLine(chestS, rightShoulder, IM_COL32(0,0,0,160), thickness + 1.2f);
-            dl->AddLine(chestS, rightShoulder, scol, thickness);
-
-            dl->AddLine(leftShoulder, lerp(leftShoulder, pelvisS, 0.25f), IM_COL32(0,0,0,140), thickness + 1.2f);
-            dl->AddLine(leftShoulder, lerp(leftShoulder, pelvisS, 0.25f), scol, thickness);
-            dl->AddLine(rightShoulder, lerp(rightShoulder, pelvisS, 0.25f), IM_COL32(0,0,0,140), thickness + 1.2f);
-            dl->AddLine(rightShoulder, lerp(rightShoulder, pelvisS, 0.25f), scol, thickness);
-
-            // Hips -> legs
-            dl->AddLine(pelvisS, leftHip, IM_COL32(0,0,0,160), thickness + 1.2f);
-            dl->AddLine(pelvisS, leftHip, scol, thickness);
-            dl->AddLine(pelvisS, rightHip, IM_COL32(0,0,0,160), thickness + 1.2f);
-            dl->AddLine(pelvisS, rightHip, scol, thickness);
-
-            dl->AddLine(leftHip, leftKnee, IM_COL32(0,0,0,140), thickness + 1.2f);
-            dl->AddLine(leftHip, leftKnee, scol, thickness);
-            dl->AddLine(rightHip, rightKnee, IM_COL32(0,0,0,140), thickness + 1.2f);
-            dl->AddLine(rightHip, rightKnee, scol, thickness);
-
-            dl->AddLine(leftKnee, leftFoot, IM_COL32(0,0,0,140), thickness + 1.2f);
-            dl->AddLine(leftKnee, leftFoot, scol, thickness);
-            dl->AddLine(rightKnee, rightFoot, IM_COL32(0,0,0,140), thickness + 1.2f);
-            dl->AddLine(rightKnee, rightFoot, scol, thickness);
         }
     }
 }
