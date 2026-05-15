@@ -36,6 +36,28 @@ static void DeleteDebugFileIfPresent(const std::string& path) {
     DeleteFileA(path.c_str());
 }
 
+static std::string HexDump(const uint8_t* data, size_t size, uintptr_t baseAddress) {
+    std::ostringstream out;
+    out << std::hex << std::setfill('0');
+    for (size_t i = 0; i < size; i += 16) {
+        out << "0x" << std::setw(8) << static_cast<unsigned long long>(baseAddress + i) << ": ";
+        for (size_t j = 0; j < 16; ++j) {
+            if (i + j < size) {
+                out << std::setw(2) << static_cast<int>(data[i + j]) << ' ';
+            } else {
+                out << "   ";
+            }
+        }
+        out << "| ";
+        for (size_t j = 0; j < 16 && i + j < size; ++j) {
+            uint8_t c = data[i + j];
+            out << ((c >= 32 && c <= 126) ? static_cast<char>(c) : '.');
+        }
+        out << '\n';
+    }
+    return out.str();
+}
+
 struct BoneDebugEntry {
     std::string name;
     uint16_t eyeAttach = 0;
@@ -54,6 +76,7 @@ struct BoneDebugEntry {
     std::string chestTrace;
     std::string leftFootTrace;
     std::string rightFootTrace;
+    std::string pawnWindowDump;
 };
 
 static void WriteBoneDebugFile(const std::string& path,
@@ -118,6 +141,7 @@ static void WriteBoneDebugFile(const std::string& path,
         out << "[chest trace]\n" << d.chestTrace << "\n";
         out << "[leftFoot trace]\n" << d.leftFootTrace << "\n";
         out << "[rightFoot trace]\n" << d.rightFootTrace << "\n";
+        out << "[pawn window 0x1160-0x13BF]\n" << d.pawnWindowDump << "\n";
         for (int b = 0; b < p.boneCount && b < 64; ++b) {
             out << "bone[" << b << "]=" << p.bones[b].x << "," << p.bones[b].y << "," << p.bones[b].z << "\n";
         }
@@ -279,6 +303,13 @@ int main() {
             bd.chestResolved = pawn.GetAttachmentWorldPosDebug(bd.chestAttach, bd.chestPos, bd.chestTrace);
             bd.leftFootResolved = pawn.GetAttachmentWorldPosDebug(bd.leftFootAttach, bd.leftFootPos, bd.leftFootTrace);
             bd.rightFootResolved = pawn.GetAttachmentWorldPosDebug(bd.rightFootAttach, bd.rightFootPos, bd.rightFootTrace);
+
+            uint8_t pawnWindow[0x260]{};
+            if (mem.ReadBuffer(pawnPtr + 0x1160, pawnWindow, sizeof(pawnWindow))) {
+                bd.pawnWindowDump = HexDump(pawnWindow, sizeof(pawnWindow), pawnPtr + 0x1160);
+            } else {
+                bd.pawnWindowDump = "failed to read pawn window 0x1160-0x13BF";
+            }
 
             if (bd.eyeResolved) { d.bones[d.boneCount++] = bd.eyePos; d.headPos = bd.eyePos; }
             if (bd.chestResolved) { d.bones[d.boneCount++] = bd.chestPos; }
