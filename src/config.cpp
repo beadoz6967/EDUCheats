@@ -53,9 +53,11 @@ uint32_t ParseHex(std::string_view v, uint32_t fallback) {
 
 Config::Config() : m_path(ResolvePath()) {}
 
+extern HMODULE g_hModule;
+
 std::string Config::ResolvePath() {
     char buf[MAX_PATH]{};
-    DWORD len = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    DWORD len = GetModuleFileNameA(g_hModule, buf, MAX_PATH);
     if (len == 0 || len >= MAX_PATH) return "config.ini";
 
     std::string exe(buf, len);

@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(EDUCheats LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Windows 11 / Win10 SDK target
 add_compile_definitions(
     WINVER=0x0A00
     _WIN32_WINNT=0x0A00
@@ -13,7 +12,7 @@ add_compile_definitions(
 )
 
 # -----------------------------------------------------------------------------
-# Dear ImGui (vendored via FetchContent — pinned tag, no submodule).
+# Dear ImGui (vendored via FetchContent)
 # -----------------------------------------------------------------------------
 include(FetchContent)
 
@@ -35,44 +34,58 @@ set(IMGUI_SOURCES
 )
 
 # -----------------------------------------------------------------------------
-# EDUCheats target
+# MinHook (inline-hook library for Present vtable hook)
+# -----------------------------------------------------------------------------
+FetchContent_Declare(
+    minhook
+    GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git
+    GIT_TAG        master
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(minhook)
+
+# -----------------------------------------------------------------------------
+# EDUCheats — internal DLL
 # -----------------------------------------------------------------------------
 set(SOURCES
-    src/main.cpp
-    src/memory.cpp
+    src/dllmain.cpp
     src/config.cpp
     src/gui/overlay.cpp
     src/gui/esp_render.cpp
     src/gui/menu_ui.cpp
 )
 
-add_executable(EDUCheats WIN32 ${SOURCES} ${IMGUI_SOURCES})
+add_library(EDUCheats SHARED ${SOURCES} ${IMGUI_SOURCES})
 
 target_include_directories(EDUCheats PRIVATE
     src
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
+    ${minhook_SOURCE_DIR}/include
 )
 
 target_link_libraries(EDUCheats PRIVATE
-    psapi
+    minhook
     dwmapi
     d3d11
     dxgi
     d3dcompiler
 )
 
-# MSVC flags
+# Fetch fresh CS2 offsets before every compile
+add_custom_command(TARGET EDUCheats PRE_BUILD
+    COMMAND powershell -ExecutionPolicy Bypass -File
+            "${CMAKE_SOURCE_DIR}/fetch_offsets.ps1"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Fetching latest CS2 offsets from a2x/cs2-dumper")
+
 if(MSVC)
     target_compile_options(EDUCheats PRIVATE /W3 /O2 /MP)
-    # Subsystem CONSOLE so AllocConsole + freopen works without a separate console app
     set_target_properties(EDUCheats PROPERTIES
-        LINK_FLAGS "/SUBSYSTEM:CONSOLE"
-    )
+        LINK_FLAGS "/SUBSYSTEM:WINDOWS")
 endif()
 
-# MinGW flags
 if(MINGW)
     target_compile_options(EDUCheats PRIVATE -O2 -Wall)
-    target_link_options(EDUCheats PRIVATE -mwindows -mconsole)
+    target_link_options(EDUCheats PRIVATE -mwindows)
 endif()
