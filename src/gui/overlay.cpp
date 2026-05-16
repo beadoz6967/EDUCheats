@@ -139,8 +139,8 @@ static HRESULT STDMETHODCALLTYPE hkPresent(IDXGISwapChain* pChain, UINT si, UINT
         snapCount = s_playerCount;
         snapTeam  = s_localTeam;
         snapView  = s_view;
-        if (snapCount > 0)
-            memcpy(snap, s_players, snapCount * sizeof(PlayerESPData));
+        for (int i = 0; i < snapCount; ++i)
+            snap[i] = s_players[i];
     }
 
     s_ctx->OMSetRenderTargets(1, &s_rtv, nullptr);
@@ -251,8 +251,8 @@ void Overlay::PushPlayers(const PlayerESPData* players, int count,
     s_playerCount = count;
     s_localTeam   = localTeam;
     s_view        = view;
-    if (count > 0)
-        memcpy(s_players, players, count * sizeof(PlayerESPData));
+    for (int i = 0; i < count; ++i)
+        s_players[i] = players[i];
 }
 
 bool Overlay::IsRunning() const {
